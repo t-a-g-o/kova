@@ -25,15 +25,6 @@ export const CARD_THEMES: Record<string, CardTheme> = {
   aurora: { name: 'Kova Aurora', bg: 'bg-[linear-gradient(135deg,#6d5bff_0%,#4a34d6_45%,#18c994_120%)]' },
 };
 
-export const detectBrand = (num: string) => {
-  const n = num.replace(/\D/g, '');
-  if (/^3[47]/.test(n)) return 'Amex';
-  if (/^4/.test(n)) return 'Visa';
-  if (/^(5[1-5]|2[2-7])/.test(n)) return 'Mastercard';
-  if (/^6/.test(n)) return 'Discover';
-  return 'Card';
-};
-
 export function CardVisual({
   brand,
   last4,

@@ -43,6 +43,6 @@ On a phone, use **Add to Home Screen** and it opens full-screen like a native ap
 - Pay the next installment, a custom amount, or **hold to pay off in full** (confetti and celebration screen)
 - Payments stay **pending** for a configurable time (Settings → Payment processing time), then post with a toast
 - AutoPay pays installments on their due date
-- Wallet: link banks (with a verifying period) and add cards with live card previews. Only the last 4 digits are stored
+- Wallet: link banks (with a verifying period) and add cards with live card previews. Kova only asks for the last 4 digits, never a full number
 - Activity feed with filters, search, and receipts that show a status timeline and confirmation number
 - Light and dark themes, sample data loader, JSON export, reset

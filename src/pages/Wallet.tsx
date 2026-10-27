@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Building2, ChevronRight, CreditCard, Landmark, Lock, Plus, Search, ShieldCheck, Star, Trash2, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '../components/AppShell';
-import { CARD_THEMES, CardVisual, detectBrand } from '../components/CardVisual';
+import { CARD_THEMES, CardVisual } from '../components/CardVisual';
 import { SuccessCheck } from '../components/Celebration';
 import { BankLogo, LogoTile } from '../components/Logos';
 import { BANKS, bankByName } from '../lib/brands';
@@ -110,7 +110,7 @@ export function Wallet() {
       </section>
 
       <p className="mt-8 flex items-center justify-center gap-2 text-center text-xs text-faint">
-        <ShieldCheck className="size-4" /> Kova stores only the last 4 digits of your accounts.
+        <ShieldCheck className="size-4" /> Kova only ever asks for the last 4 digits of your accounts.
       </p>
 
       <AddCardSheet open={addCard} onClose={() => setAddCard(false)} />
@@ -149,7 +149,7 @@ function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClos
           )}
           <div className="divide-y divide-line">
             <Row label="Nickname" value={method.nickname || '—'} />
-            {method.kind === 'bank' && <Row label="Routing" value={`•••••${method.routingLast4 ?? '••••'}`} />}
+            {method.kind === 'bank' && method.routingLast4 && <Row label="Routing" value={`•••••${method.routingLast4}`} />}
             {method.kind === 'card' && method.issuer && <Row label="Issuer" value={method.issuer} />}
             {method.kind === 'card' && <Row label="Network" value={method.institution} />}
             {method.kind === 'card' && <Row label="Expires" value={method.expiry} />}
@@ -224,39 +224,24 @@ function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClos
   );
 }
 
-const fmtCard = (v: string, amex: boolean) => {
-  const d = v.replace(/\D/g, '').slice(0, amex ? 15 : 16);
-  return amex ? d.replace(/^(\d{0,4})(\d{0,6})(\d{0,5}).*/, (_, a, b, c) => [a, b, c].filter(Boolean).join(' ')) : d.replace(/(\d{4})(?=\d)/g, '$1 ');
-};
-
 const ISSUERS = BANKS.filter((b) => b.issuer);
 
-/** Luhn checksum — catches typos in card numbers before they reach a processor. */
-const luhn = (digits: string) => {
-  let sum = 0;
-  for (let i = 0; i < digits.length; i++) {
-    let d = +digits[digits.length - 1 - i];
-    if (i % 2) d = d * 2 > 9 ? d * 2 - 9 : d * 2;
-    sum += d;
-  }
-  return digits.length >= 13 && sum % 10 === 0;
-};
+const NETWORKS = ['Visa', 'Mastercard', 'Amex', 'Discover'] as const;
+type Network = (typeof NETWORKS)[number];
 
-/** ABA routing checksum (weights 3-7-1). */
-const validRouting = (r: string) =>
-  /^\d{9}$/.test(r) && [...r].reduce((sum, d, i) => sum + +d * [3, 7, 1][i % 3], 0) % 10 === 0;
+/** Kova only ever asks for the last 4 digits, never a full account or card number. */
+const digits4 = (v: string) => v.replace(/\D/g, '').slice(0, 4);
 
 function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { addMethod, profile, methods } = useData();
   const toast = useToast();
   const [issuer, setIssuer] = useState('Chase');
   const [label, setLabel] = useState('');
-  const [num, setNum] = useState('');
+  const [brand, setBrand] = useState<Network>('Visa');
+  const [last4, setLast4] = useState('');
   const [holder, setHolder] = useState('');
   const [exp, setExp] = useState('');
-  const [cvc, setCvc] = useState('');
   const [theme, setTheme] = useState('sapphire');
-  const [flip, setFlip] = useState(false);
   const [phase, setPhase] = useState<'form' | 'done'>('form');
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -265,27 +250,23 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
     if (!open) return;
     setIssuer('Chase');
     setLabel('');
-    setNum('');
+    setBrand('Visa');
+    setLast4('');
     setHolder(profile.displayName);
     setExp('');
-    setCvc('');
     setTheme('sapphire');
-    setFlip(false);
     setPhase('form');
     setSaving(false);
     setTouched(false);
   }, [open, profile.displayName]);
 
-  const brand = detectBrand(num);
-  const digits = num.replace(/\D/g, '');
-  const duplicate = methods.some((m) => m.kind === 'card' && m.institution === brand && m.last4 === digits.slice(-4));
-  const validNum = luhn(digits) && !duplicate;
+  const duplicate = methods.some((m) => m.kind === 'card' && m.institution === brand && m.last4 === last4);
+  const validNum = last4.length === 4 && !duplicate;
   const [mm, yy] = exp.split('/');
   const expFormat = /^\d{2}\/\d{2}$/.test(exp) && +mm >= 1 && +mm <= 12;
   // A card is good through the last day of its expiry month.
   const expired = expFormat && new Date(2000 + +yy, +mm, 1).getTime() <= Date.now();
   const validExp = expFormat && !expired;
-  const validCvc = cvc.length >= (brand === 'Amex' ? 4 : 3);
 
   const pickIssuer = (name: string) => {
     setIssuer(name);
@@ -295,7 +276,7 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
 
   const save = async () => {
     setTouched(true);
-    if (!validNum || !validExp || !validCvc || !holder.trim()) return;
+    if (!validNum || !validExp || !holder.trim()) return;
     setSaving(true);
     await Promise.all([
       addMethod({
@@ -303,7 +284,7 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
         institution: brand,
         issuer,
         nickname: label.trim() || CARD_THEMES[theme].name,
-        last4: digits.slice(-4),
+        last4,
         holder: holder.trim(),
         expiry: `${mm}/${yy}`,
         theme,
@@ -312,7 +293,7 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
     ]);
     setSaving(false);
     setPhase('done');
-    toast({ tone: 'success', title: `${issuer} card ending in ${digits.slice(-4)} added` });
+    toast({ tone: 'success', title: `${issuer} card ending in ${last4} added` });
   };
 
   return (
@@ -320,7 +301,7 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
       <AnimatePresence mode="wait" initial={false}>
         {phase === 'form' ? (
           <motion.div key="f" exit={{ opacity: 0 }} className="space-y-4">
-            <CardVisual brand={brand} number={num} holder={holder} expiry={exp} theme={theme} issuer={issuer} label={label} flipped={flip} cvc={cvc} />
+            <CardVisual brand={brand} last4={last4 || undefined} holder={holder} expiry={exp} theme={theme} issuer={issuer} label={label} />
             <div>
               <p className="mb-2 text-[13px] font-semibold text-muted">Issuer</p>
               <div className="no-scrollbar -mx-6 flex gap-2 overflow-x-auto px-6 pb-1">
@@ -350,16 +331,19 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
                 ))}
               </div>
             </div>
+            <div>
+              <p className="mb-2 text-[13px] font-semibold text-muted">Network</p>
+              <Segmented value={brand} onChange={setBrand} options={NETWORKS.map((n) => ({ value: n, label: n }))} />
+            </div>
             <Input
-              label="Card number"
+              label="Last 4 digits"
               inputMode="numeric"
-              autoComplete="cc-number"
-              placeholder="1234 5678 9012 3456"
+              autoComplete="off"
+              placeholder="1234"
               icon={<CreditCard />}
-              value={num}
-              onChange={(e) => setNum(fmtCard(e.target.value, /^3[47]/.test(e.target.value.replace(/\D/g, ''))))}
-              onFocus={() => setFlip(false)}
-              error={touched && !validNum ? (duplicate ? 'This card is already in your wallet.' : 'Check your card number.') : undefined}
+              value={last4}
+              onChange={(e) => setLast4(digits4(e.target.value))}
+              error={touched && !validNum ? (duplicate ? 'This card is already in your wallet.' : 'Enter the last 4 digits.') : undefined}
             />
             <Input
               label="Name on card"
@@ -367,47 +351,32 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
               icon={<User />}
               value={holder}
               onChange={(e) => setHolder(e.target.value)}
-              onFocus={() => setFlip(false)}
               error={touched && !holder.trim() ? 'Enter the cardholder name.' : undefined}
             />
-            <div className="grid grid-cols-2 gap-3">
               <Input
                 label="Expiry"
                 inputMode="numeric"
-                autoComplete="cc-exp"
+                autoComplete="off"
                 placeholder="MM/YY"
                 value={exp}
-                onFocus={() => setFlip(false)}
                 onChange={(e) => {
                   const d = e.target.value.replace(/\D/g, '').slice(0, 4);
                   setExp(d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d);
                 }}
                 error={touched && !validExp ? (expired ? 'Card expired' : 'MM/YY') : undefined}
               />
-              <Input
-                label="CVC"
-                inputMode="numeric"
-                autoComplete="cc-csc"
-                placeholder="123"
-                value={cvc}
-                onFocus={() => setFlip(true)}
-                onBlur={() => setFlip(false)}
-                onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                error={touched && !validCvc ? 'Required' : undefined}
-              />
-            </div>
-            <Input label="Card name (optional)" placeholder="e.g. Sapphire Reserve" value={label} onChange={(e) => setLabel(e.target.value)} onFocus={() => setFlip(false)} />
+            <Input label="Card name (optional)" placeholder="e.g. Sapphire Reserve" value={label} onChange={(e) => setLabel(e.target.value)} />
             <Button size="lg" block loading={saving} onClick={save}>
               <Lock className="size-4" /> Add card
             </Button>
-            <p className="text-center text-xs text-faint">Your full card number and CVC are never stored.</p>
+            <p className="text-center text-xs text-faint">Kova never asks for your full card number or security code.</p>
           </motion.div>
         ) : (
           <motion.div key="d" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center py-8 text-center">
             <SuccessCheck size={76} />
             <h3 className="mt-6 font-display text-2xl font-semibold">Card added</h3>
             <p className="mt-1 text-muted">
-              {issuer} {brand} ending in {digits.slice(-4)} is ready to use.
+              {issuer} {brand} ending in {last4} is ready to use.
             </p>
             <Button size="lg" block className="mt-7" onClick={onClose}>
               Done
@@ -425,7 +394,6 @@ function LinkBankSheet({ open, onClose }: { open: boolean; onClose: () => void }
   const [q, setQ] = useState('');
   const [bank, setBank] = useState('');
   const [type, setType] = useState<'checking' | 'savings'>('checking');
-  const [routing, setRouting] = useState('');
   const [acct, setAcct] = useState('');
   const [nick, setNick] = useState('');
   const [touched, setTouched] = useState(false);
@@ -437,7 +405,6 @@ function LinkBankSheet({ open, onClose }: { open: boolean; onClose: () => void }
     setQ('');
     setBank('');
     setType('checking');
-    setRouting('');
     setAcct('');
     setNick('');
     setTouched(false);
@@ -452,10 +419,10 @@ function LinkBankSheet({ open, onClose }: { open: boolean; onClose: () => void }
 
   const connect = async () => {
     setTouched(true);
-    if (!validRouting(routing) || acct.length < 4) return;
+    if (acct.length < 4) return;
     setSaving(true);
     await Promise.all([
-      addMethod({ kind: 'bank', institution: bank, nickname: nick.trim() || (type === 'checking' ? 'Checking' : 'Savings'), last4: acct.slice(-4), routingLast4: routing.slice(-4), accountType: type }),
+      addMethod({ kind: 'bank', institution: bank, nickname: nick.trim() || (type === 'checking' ? 'Checking' : 'Savings'), last4: acct, accountType: type }),
       new Promise((r) => setTimeout(r, 1200)),
     ]);
     setSaving(false);
@@ -504,21 +471,13 @@ function LinkBankSheet({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
             <Segmented value={type} onChange={setType} options={[{ value: 'checking', label: 'Checking' }, { value: 'savings', label: 'Savings' }]} />
             <Input
-              label="Routing number"
+              label="Last 4 digits of account"
               inputMode="numeric"
-              placeholder="9 digits"
-              value={routing}
-              onChange={(e) => setRouting(e.target.value.replace(/\D/g, '').slice(0, 9))}
-              error={touched && !validRouting(routing) ? (routing.length !== 9 ? 'Routing numbers are 9 digits.' : 'Check your routing number.') : undefined}
-            />
-            <Input
-              label="Account number"
-              inputMode="numeric"
-              type="password"
-              placeholder="Account number"
+              autoComplete="off"
+              placeholder="1234"
               value={acct}
-              onChange={(e) => setAcct(e.target.value.replace(/\D/g, '').slice(0, 17))}
-              error={touched && acct.length < 4 ? 'Enter your account number.' : undefined}
+              onChange={(e) => setAcct(digits4(e.target.value))}
+              error={touched && acct.length < 4 ? 'Enter the last 4 digits.' : undefined}
             />
             <Input label="Nickname (optional)" placeholder="e.g. Main checking" value={nick} onChange={(e) => setNick(e.target.value)} />
             <div className="flex gap-3">
@@ -537,7 +496,7 @@ function LinkBankSheet({ open, onClose }: { open: boolean; onClose: () => void }
             <SuccessCheck size={76} />
             <h3 className="mt-6 font-display text-2xl font-semibold">Account linked</h3>
             <p className="mt-1 text-muted">
-              {bank} ••{acct.slice(-4)} will be ready to use once it’s verified.
+              {bank} ••{acct} will be ready to use once it’s verified.
             </p>
             <Button size="lg" block className="mt-7" onClick={onClose}>
               Done
