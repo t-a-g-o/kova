@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Check, Lock, Mail, MailCheck, User } from 'lucide-react';
+import { Check, Lock, Mail, MailCheck, User } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authMessage, useAuth } from '../../lib/auth';
 import { cn } from '../../lib/utils';
+import { LogoMark } from '../../components/Logo';
 import { Button, Input } from '../../components/ui';
 import { AuthLayout, GoogleIcon, authItem, authStagger } from './AuthLayout';
 
@@ -28,9 +29,30 @@ function FormError({ msg }: { msg: string }) {
 
 function Divider() {
   return (
-    <div className="my-6 flex items-center gap-3 text-xs font-semibold tracking-wider text-faint uppercase">
+    <div className="flex items-center gap-3 text-xs font-semibold tracking-wider text-faint uppercase">
       <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
     </div>
+  );
+}
+
+/** App-style screen heading: big icon on the welcome screen, large title elsewhere. */
+function Hero({ title, sub, icon }: { title: string; sub: string; icon?: boolean }) {
+  return (
+    <>
+      {icon && (
+        <motion.div variants={authItem} className="mt-6 mb-7 flex justify-center">
+          <div className="rounded-[26px] shadow-[0_16px_50px_-10px_rgba(109,91,255,0.75)]">
+            <LogoMark size={84} animated />
+          </div>
+        </motion.div>
+      )}
+      <motion.h1 variants={authItem} className={cn('font-display text-[30px] leading-tight font-extrabold', icon ? 'text-center' : 'mt-2')}>
+        {title}
+      </motion.h1>
+      <motion.p variants={authItem} className={cn('mt-2 mb-8 text-[15px] text-muted', icon && 'text-center')}>
+        {sub}
+      </motion.p>
+    </>
   );
 }
 
@@ -90,14 +112,24 @@ export function SignIn() {
   };
 
   return (
-    <AuthLayout>
-      <motion.form variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
-        <motion.h1 variants={authItem} className="font-display text-[32px] leading-tight font-extrabold">
-          Welcome back
-        </motion.h1>
-        <motion.p variants={authItem} className="mt-2 mb-8 text-muted">
-          Sign in to manage your payments.
-        </motion.p>
+    <AuthLayout
+      footer={
+        <>
+          <Button type="submit" form="signin" size="lg" block loading={loading}>
+            Sign in
+          </Button>
+          <GoogleButton />
+          <p className="pt-1 text-center text-sm text-muted">
+            New to Kova?{' '}
+            <Link to="/signup" className="font-semibold text-iris-500">
+              Create an account
+            </Link>
+          </p>
+        </>
+      }
+    >
+      <motion.form id="signin" variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
+        <Hero icon title="Welcome back" sub="Sign in to manage your payments." />
         <motion.div variants={authItem}>
           <FormError msg={err} />
         </motion.div>
@@ -105,46 +137,31 @@ export function SignIn() {
           <Input
             label="Email"
             type="email"
+            inputMode="email"
             autoComplete="email"
+            autoCapitalize="none"
             placeholder="you@example.com"
             icon={<Mail />}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             error={touched && !emailOk(email) ? 'Enter a valid email address.' : undefined}
           />
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-[13px] font-semibold text-muted">Password</span>
-              <Link to="/forgot" className="text-[13px] font-semibold text-iris-500 hover:text-iris-400">
-                Forgot password?
-              </Link>
-            </div>
-            <Input
-              type="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              icon={<Lock />}
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              error={touched && !pw ? 'Enter your password.' : undefined}
-            />
+          <Input
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="••••••••"
+            icon={<Lock />}
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            error={touched && !pw ? 'Enter your password.' : undefined}
+          />
+          <div className="flex justify-end">
+            <Link to="/forgot" className="text-[13px] font-semibold text-iris-500">
+              Forgot password?
+            </Link>
           </div>
         </motion.div>
-        <motion.div variants={authItem} className="mt-7">
-          <Button type="submit" size="lg" block loading={loading}>
-            Sign in <ArrowRight className="size-5" />
-          </Button>
-        </motion.div>
-        <motion.div variants={authItem}>
-          <Divider />
-          <GoogleButton />
-        </motion.div>
-        <motion.p variants={authItem} className="mt-8 text-center text-sm text-muted">
-          New to Kova?{' '}
-          <Link to="/signup" className="font-semibold text-iris-500 hover:text-iris-400">
-            Create an account
-          </Link>
-        </motion.p>
       </motion.form>
     </AuthLayout>
   );
@@ -195,14 +212,20 @@ export function SignUp() {
   };
 
   return (
-    <AuthLayout>
-      <motion.form variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
-        <motion.h1 variants={authItem} className="font-display text-[32px] leading-tight font-extrabold">
-          Create your account
-        </motion.h1>
-        <motion.p variants={authItem} className="mt-2 mb-8 text-muted">
-          It takes less than a minute. Checking eligibility won’t affect your credit score.
-        </motion.p>
+    <AuthLayout
+      back="/signin"
+      footer={
+        <>
+          <Button type="submit" form="signup" size="lg" block loading={loading}>
+            Create account
+          </Button>
+          <Divider />
+          <GoogleButton />
+        </>
+      }
+    >
+      <motion.form id="signup" variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
+        <Hero title="Create your account" sub="It takes less than a minute. Checking eligibility won’t affect your credit score." />
         <motion.div variants={authItem}>
           <FormError msg={err} />
         </motion.div>
@@ -219,7 +242,9 @@ export function SignUp() {
           <Input
             label="Email"
             type="email"
+            inputMode="email"
             autoComplete="email"
+            autoCapitalize="none"
             placeholder="you@example.com"
             icon={<Mail />}
             value={email}
@@ -275,21 +300,6 @@ export function SignUp() {
             I agree to Kova’s <span className="font-semibold text-ink">Terms of Service</span> and <span className="font-semibold text-ink">Privacy Policy</span>.
           </span>
         </motion.div>
-        <motion.div variants={authItem} className="mt-7">
-          <Button type="submit" size="lg" block loading={loading}>
-            Create account <ArrowRight className="size-5" />
-          </Button>
-        </motion.div>
-        <motion.div variants={authItem}>
-          <Divider />
-          <GoogleButton />
-        </motion.div>
-        <motion.p variants={authItem} className="mt-8 text-center text-sm text-muted">
-          Already have an account?{' '}
-          <Link to="/signin" className="font-semibold text-iris-500 hover:text-iris-400">
-            Sign in
-          </Link>
-        </motion.p>
       </motion.form>
     </AuthLayout>
   );
@@ -317,13 +327,25 @@ export function Forgot() {
   };
 
   return (
-    <AuthLayout>
-      <Link to="/signin" className="mb-8 inline-flex w-fit items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink">
-        <ArrowLeft className="size-4" /> Back to sign in
-      </Link>
+    <AuthLayout
+      back="/signin"
+      footer={
+        sent ? (
+          <Link to="/signin" className="block">
+            <Button size="lg" block>
+              Back to sign in
+            </Button>
+          </Link>
+        ) : (
+          <Button type="submit" form="forgot" size="lg" block loading={loading}>
+            Send reset link
+          </Button>
+        )
+      }
+    >
       <AnimatePresence mode="wait">
         {sent ? (
-          <motion.div key="sent" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
+          <motion.div key="sent" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="pt-16 text-center">
             <motion.div
               initial={{ scale: 0, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
@@ -336,27 +358,23 @@ export function Forgot() {
             <p className="mt-2 text-muted">
               If an account exists for <span className="font-semibold text-ink">{email}</span>, you’ll get a link to reset your password.
             </p>
-            <Link to="/signin">
-              <Button size="lg" block className="mt-8">
-                Back to sign in
-              </Button>
-            </Link>
           </motion.div>
         ) : (
-          <motion.form key="form" variants={authStagger} initial="hidden" animate="show" exit={{ opacity: 0 }} onSubmit={submit} noValidate>
-            <motion.h1 variants={authItem} className="font-display text-[32px] leading-tight font-extrabold">
-              Reset password
-            </motion.h1>
-            <motion.p variants={authItem} className="mt-2 mb-8 text-muted">
-              Enter your email and we’ll send you a reset link.
-            </motion.p>
+          <motion.form id="forgot" key="form" variants={authStagger} initial="hidden" animate="show" exit={{ opacity: 0 }} onSubmit={submit} noValidate>
+            <Hero title="Reset password" sub="Enter your email and we’ll send you a reset link." />
             <motion.div variants={authItem}>
-              <Input label="Email" type="email" autoComplete="email" placeholder="you@example.com" icon={<Mail />} value={email} onChange={(e) => setEmail(e.target.value)} error={err} />
-            </motion.div>
-            <motion.div variants={authItem} className="mt-7">
-              <Button type="submit" size="lg" block loading={loading}>
-                Send reset link
-              </Button>
+              <Input
+                label="Email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                placeholder="you@example.com"
+                icon={<Mail />}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                error={err}
+              />
             </motion.div>
           </motion.form>
         )}

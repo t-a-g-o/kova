@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
+import { InstallPrompt } from './components/InstallPrompt';
 import { LogoMark } from './components/Logo';
 import { ToastProvider } from './components/Toast';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -75,6 +76,7 @@ export default function App() {
         <AuthProvider>
           <DataProvider>
             <AppRoutes />
+            <InstallPrompt />
           </DataProvider>
         </AuthProvider>
       </ToastProvider>
