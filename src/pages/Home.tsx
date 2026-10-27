@@ -40,6 +40,16 @@ export function Home() {
     [active],
   );
 
+  // One row per plan: the installment that's actually next, not every future one.
+  const nextUp = useMemo(
+    () =>
+      active
+        .filter(({ s }) => s.nextDue)
+        .map(({ plan, s }) => ({ plan, due: s.nextDue!, processing: s.pending > 0 }))
+        .sort((a, b) => a.due.dueDate - b.due.dueDate),
+    [active],
+  );
+
   const totals = useMemo(() => {
     const balance = active.reduce((sum, r) => sum + r.s.remaining, 0);
     const paid = rows.reduce((sum, r) => sum + r.s.paid, 0);
@@ -48,7 +58,8 @@ export function Home() {
   }, [active, rows, upcoming, now]);
 
   const available = Math.max(0, profile.spendingPower - totals.balance);
-  const next = upcoming[0];
+  const next = nextUp[0];
+  const payable = nextUp.find((n) => !n.processing);
   const first = (profile.displayName || '').split(' ')[0];
 
   if (!ready) {
@@ -72,7 +83,7 @@ export function Home() {
           <Button variant="outline" onClick={openNewPlan} className="hidden sm:inline-flex">
             <Plus className="size-4" /> New plan
           </Button>
-          {next && <Button onClick={() => nav(`/plans/${next.plan.id}`, { state: { pay: 'next' } })}>Make a payment</Button>}
+          {payable && <Button onClick={() => nav(`/plans/${payable.plan.id}`, { state: { pay: 'next' } })}>Make a payment</Button>}
         </div>
       </motion.div>
 
@@ -150,18 +161,24 @@ export function Home() {
               <Card className="flex flex-wrap items-center gap-4 px-5 py-4">
                 <PlanThumb plan={next.plan} size={44} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-muted">{next.inst.status === 'overdue' ? 'Past due' : 'Next payment'}</p>
+                  <p className="text-xs font-medium text-muted">{next.due.overdue ? 'Past due' : 'Next payment'}</p>
                   <p className="truncate font-medium">{next.plan.name}</p>
-                  <p className={cn('text-sm', next.inst.status === 'overdue' ? 'text-rose-500' : 'text-muted')}>
-                    Due {fmtShort(next.inst.dueDate)}
+                  <p className={cn('text-sm', next.due.overdue ? 'text-rose-500' : 'text-muted')}>
+                    Due {fmtShort(next.due.dueDate)}
                     {next.plan.autopay ? ' · AutoPay on' : ''}
                   </p>
                 </div>
                 <div className="flex w-full items-center justify-between gap-4 border-t border-line pt-3 sm:w-auto sm:border-0 sm:pt-0">
-                  <span className="tabular text-lg font-semibold">{money(next.inst.amount)}</span>
-                  <Button variant="outline" size="sm" onClick={() => nav(`/plans/${next.plan.id}`, { state: { pay: 'next' } })}>
-                    Pay now
-                  </Button>
+                  <span className="tabular text-lg font-semibold">{money(next.due.amount)}</span>
+                  {next.processing ? (
+                    <Badge tone="pending" pulse>
+                      Processing
+                    </Badge>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => nav(`/plans/${next.plan.id}`, { state: { pay: 'next' } })}>
+                      Pay now
+                    </Button>
+                  )}
                 </div>
               </Card>
             </motion.div>
@@ -201,19 +218,20 @@ export function Home() {
                   <div className="border-b border-line px-5 py-3.5">
                     <h2 className="font-semibold">Upcoming</h2>
                   </div>
-                  {upcoming.length ? (
+                  {nextUp.length ? (
                     <ul className="divide-y divide-line">
-                      {upcoming.slice(0, 5).map(({ plan, inst }) => (
-                        <li key={plan.id + inst.index}>
+                      {nextUp.slice(0, 5).map(({ plan, due, processing }) => (
+                        <li key={plan.id}>
                           <Link to={`/plans/${plan.id}`} className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface-2">
                             <PlanThumb plan={plan} size={32} />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium">{plan.name}</p>
-                              <p className={cn('text-xs', inst.status === 'overdue' ? 'text-rose-500' : 'text-muted')}>
-                                {inst.status === 'overdue' ? 'Past due' : relativeDay(inst.dueDate, now)}
+                              <p className={cn('text-xs', due.overdue ? 'text-rose-500' : processing ? 'text-amber-500 dark:text-amber-300' : 'text-muted')}>
+                                {due.overdue ? 'Past due' : relativeDay(due.dueDate, now)}
+                                {processing ? ' · Payment processing' : plan.autopay ? ' · AutoPay' : ''}
                               </p>
                             </div>
-                            <span className="tabular text-sm font-medium">{money(inst.amount)}</span>
+                            <span className="tabular text-sm font-medium">{money(due.amount)}</span>
                           </Link>
                         </li>
                       ))}

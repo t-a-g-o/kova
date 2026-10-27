@@ -67,6 +67,8 @@ export interface PlanStats {
   scheduleTotal: number;
   paid: number;
   pending: number;
+  /** When the latest in-flight payment posts; null if nothing is processing. */
+  pendingUntil: number | null;
   remaining: number;
   progress: number;
   installmentsPaid: number;
@@ -84,7 +86,9 @@ export function planStats(plan: Plan, txns: Txn[], now = Date.now()): PlanStats 
     .filter((t) => t.planId === plan.id && isPaymentTxn(t) && !t.failed)
     .sort((a, b) => b.createdAt - a.createdAt);
   const paid = round2(payments.reduce((s, t) => s + t.amount, 0));
-  const pending = round2(payments.filter((t) => txnStatus(t, now) === 'pending').reduce((s, t) => s + t.amount, 0));
+  const inFlight = payments.filter((t) => txnStatus(t, now) === 'pending');
+  const pending = round2(inFlight.reduce((s, t) => s + t.amount, 0));
+  const pendingUntil = inFlight.length ? Math.max(...inFlight.map((t) => t.settlesAt)) : null;
   const settled = paid - pending;
   const isPaid = plan.status === 'paid';
   const today = startOfDay(now);
@@ -119,6 +123,7 @@ export function planStats(plan: Plan, txns: Txn[], now = Date.now()): PlanStats 
     scheduleTotal,
     paid,
     pending,
+    pendingUntil,
     remaining,
     progress: isPaid ? 1 : scheduleTotal > 0 ? Math.min(1, paid / scheduleTotal) : 0,
     installmentsPaid,

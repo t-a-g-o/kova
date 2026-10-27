@@ -16,6 +16,18 @@ const DEFAULT_PROFILE: Omit<Profile, 'displayName' | 'email' | 'memberSince'> = 
 
 export const methodLabel = (m?: PaymentMethod) => (m ? `${m.institution} ••${m.last4}` : 'Kova balance');
 
+/** Why a method can't be charged right now, or null if it's good to use. */
+export function methodIssue(m: PaymentMethod, now = Date.now()): string | null {
+  if (m.verifiesAt && now < m.verifiesAt) return 'Verifying';
+  if (m.kind === 'card' && m.expiry) {
+    const [mm, yy] = m.expiry.split('/').map(Number);
+    if (mm && yy !== undefined && new Date(2000 + yy, mm, 1).getTime() <= now) return 'Expired';
+  }
+  return null;
+}
+
+export class PaymentError extends Error {}
+
 interface DataCtx {
   ready: boolean;
   plans: Plan[];
@@ -129,6 +141,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const pendingMs = profile.pendingSeconds * 1000;
 
+  // Plans with a payment being submitted right now — blocks double-taps before the snapshot catches up.
+  const inFlight = useRef(new Set<string>());
+
+  /** Validates a manual payment: one at a time per plan, from a usable method. */
+  const checkPayment = useCallback(
+    (planId: string, methodId: string | undefined, now: number) => {
+      const plan = snap.plans.find((p) => p.id === planId);
+      if (!plan || plan.status !== 'active') throw new PaymentError('This plan is no longer active.');
+      if (inFlight.current.has(planId)) throw new PaymentError('A payment is already being submitted.');
+      const stats = planStats(plan, snap.txns, now);
+      if (stats.pending > 0) throw new PaymentError('A payment for this plan is still processing. You can pay again once it posts.');
+      const m = methods.find((x) => x.id === methodId);
+      if (!m) throw new PaymentError('Choose a payment method.');
+      const issue = methodIssue(m, now);
+      if (issue) throw new PaymentError(`${methodLabel(m)} can’t be used right now (${issue.toLowerCase()}).`);
+      return { plan, stats, m };
+    },
+    [snap.plans, snap.txns, methods],
+  );
+
   const addPlan = useCallback<DataCtx['addPlan']>(
     async (input, backfill) => {
       const plan: Plan = { ...input, id: uid('p_'), createdAt: Date.now(), status: 'active', orderNumber: orderNumber() };
@@ -167,11 +199,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const pay = useCallback<DataCtx['pay']>(
     async (planId, amount, methodId) => {
-      const plan = snap.plans.find((p) => p.id === planId)!;
-      const m = findMethod(methodId);
       const now = Date.now();
-      const stats = planStats(plan, snap.txns, now);
+      const { plan, stats, m } = checkPayment(planId, methodId, now);
       const amt = round2(Math.min(amount, stats.remaining));
+      if (amt < Math.min(1, stats.remaining)) throw new PaymentError('Enter an amount of at least $1.00.');
       const txn: Txn = {
         id: uid('t_'),
         planId,
@@ -185,21 +216,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
         confirmation: confirmationCode(),
       };
       const paidOff = stats.remaining - amt < 0.01;
-      await dataApi.putMany(u!, [
-        { coll: 'txns', item: txn },
-        ...(paidOff ? [{ coll: 'plans' as Coll, item: { ...plan, status: 'paid' as const, paidOffAt: now } }] : []),
-      ]);
+      inFlight.current.add(planId);
+      try {
+        await dataApi.putMany(u!, [
+          { coll: 'txns', item: txn },
+          ...(paidOff ? [{ coll: 'plans' as Coll, item: { ...plan, status: 'paid' as const, paidOffAt: now } }] : []),
+        ]);
+      } finally {
+        inFlight.current.delete(planId);
+      }
       return { txn, paidOff };
     },
-    [u, snap.plans, snap.txns, findMethod, pendingMs],
+    [u, checkPayment, pendingMs],
   );
 
   const payoff = useCallback<DataCtx['payoff']>(
     async (planId, methodId) => {
-      const plan = snap.plans.find((p) => p.id === planId)!;
-      const m = findMethod(methodId);
       const now = Date.now();
-      const stats = planStats(plan, snap.txns, now);
+      const { plan, stats, m } = checkPayment(planId, methodId, now);
       const txn: Txn = {
         id: uid('t_'),
         planId,
@@ -212,13 +246,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         settlesAt: now + pendingMs,
         confirmation: confirmationCode(),
       };
-      await dataApi.putMany(u!, [
-        { coll: 'txns', item: txn },
-        { coll: 'plans', item: { ...plan, status: 'paid', paidOffAt: now } },
-      ]);
+      inFlight.current.add(planId);
+      try {
+        await dataApi.putMany(u!, [
+          { coll: 'txns', item: txn },
+          { coll: 'plans', item: { ...plan, status: 'paid', paidOffAt: now } },
+        ]);
+      } finally {
+        inFlight.current.delete(planId);
+      }
       return { txn, saved: stats.interestSaved };
     },
-    [u, snap.plans, snap.txns, findMethod, pendingMs],
+    [u, checkPayment, pendingMs],
   );
 
   const addMethod = useCallback<DataCtx['addMethod']>(
@@ -389,8 +428,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const now = Date.now();
       const writes: { coll: Coll; item: Plan | Txn }[] = [];
       for (const plan of snap.plans) {
-        if (plan.status !== 'active' || !plan.autopay) continue;
+        if (plan.status !== 'active' || !plan.autopay || inFlight.current.has(plan.id)) continue;
         const stats = planStats(plan, snap.txns, now);
+        if (stats.pending > 0) continue;
         const due = stats.nextDue;
         if (!due || due.dueDate > now || due.dueDate < plan.createdAt - DAY) continue;
         const id = `auto_${plan.id}_${due.index}`;

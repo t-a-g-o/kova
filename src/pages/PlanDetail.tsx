@@ -12,7 +12,7 @@ import { AnimatedNumber, Badge, Button, Card, Empty, Input, ProgressRing, Row, S
 import { planLabel, planStats, type InstallmentStatus } from '../lib/finance';
 import { useData, useNow } from '../lib/store';
 import type { Txn } from '../lib/types';
-import { cn, fmtDate, fmtShort, money } from '../lib/utils';
+import { cn, countdown, fmtDate, fmtShort, money } from '../lib/utils';
 
 const instStyle: Record<InstallmentStatus, { label: string; cls: string }> = {
   paid: { label: 'Paid', cls: 'bg-mint-400 text-[#04140e]' },
@@ -40,10 +40,11 @@ export function PlanDetail() {
   useEffect(() => {
     const want = (loc.state as { pay?: PayMode } | null)?.pay;
     if (want && plan?.status === 'active') {
-      setMode(want);
+      if (planStats(plan, txns).pending > 0) toast({ tone: 'pending', title: 'A payment is already processing', body: 'You can pay again once it posts.' });
+      else setMode(want);
       nav(loc.pathname, { replace: true, state: null });
     }
-  }, [loc.state, plan?.status, nav, loc.pathname]);
+  }, [loc.state, plan, txns, toast, nav, loc.pathname]);
 
   if (!plan) {
     return ready ? (
@@ -121,7 +122,17 @@ export function PlanDetail() {
               />
             </div>
 
-            {!paid && (
+            {!paid && s.pendingUntil && (
+              <div className="relative mt-7 flex items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3.5">
+                <Clock className="size-5 shrink-0 text-amber-500 dark:text-amber-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{money(s.pending)} payment processing</p>
+                  <p className="text-xs text-muted">You can make another payment once it posts · about {countdown(s.pendingUntil - now)}</p>
+                </div>
+              </div>
+            )}
+
+            {!paid && !s.pendingUntil && (
               <div className="relative mt-7 grid gap-3 sm:grid-cols-3">
                 <Button size="lg" onClick={() => setMode('next')} className="sm:col-span-1">
                   Pay {money(s.nextDue?.amount ?? s.remaining)}
@@ -216,7 +227,7 @@ export function PlanDetail() {
                   label="AutoPay"
                 />
               </div>
-              <MethodPicker value={plan.methodId} onChange={(mid) => void updatePlan(plan.id, { methodId: mid })} />
+              <MethodPicker label="AutoPay from" value={plan.methodId} onChange={(mid) => void updatePlan(plan.id, { methodId: mid })} />
             </Card>
           )}
 
