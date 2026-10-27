@@ -1,0 +1,10 @@
+{
+  "name": "Kova",
+  "short_name": "Kova",
+  "description": "Pay over time.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07060D",
+  "theme_color": "#07060D",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
