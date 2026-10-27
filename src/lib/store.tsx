@@ -294,13 +294,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const removeMethod = useCallback<DataCtx['removeMethod']>(
     async (id) => {
       const rest = snap.methods.filter((m) => m.id !== id);
+      // There must always be a method that can make a payment.
+      if (!rest.some((m) => !methodIssue(m))) throw new PaymentError('Add another payment method before removing this one.');
       const wasDefault = snap.methods.find((m) => m.id === id)?.isDefault;
       const next = wasDefault ? rest[0] : rest.find((m) => m.isDefault) ?? rest[0];
       await dataApi.remove(u!, 'methods', id);
-      // Plans paying from this method move to the (new) default; with nothing left, AutoPay turns off.
+      // Plans paying from this method move to the (new) default.
       const moved = snap.plans
         .filter((p) => p.methodId === id && p.status === 'active')
-        .map((p) => ({ coll: 'plans' as Coll, item: { ...p, methodId: next?.id, autopay: next ? p.autopay : false } }));
+        .map((p) => ({ coll: 'plans' as Coll, item: { ...p, methodId: next?.id } }));
       await dataApi.putMany(u!, [...(wasDefault && next ? [{ coll: 'methods' as Coll, item: { ...next, isDefault: true } }] : []), ...moved]);
     },
     [u, snap.methods, snap.plans],

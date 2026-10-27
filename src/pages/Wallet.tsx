@@ -8,9 +8,9 @@ import { BankLogo, LogoTile } from '../components/Logos';
 import { BANKS, bankByName } from '../lib/brands';
 import { useToast } from '../components/Toast';
 import { Badge, Button, Card, Empty, Input, Row, Segmented, Sheet } from '../components/ui';
-import { methodLabel, useData, useNow } from '../lib/store';
+import { methodIssue, methodLabel, useData, useNow } from '../lib/store';
 import type { PaymentMethod } from '../lib/types';
-import { cn, countdown, fmtDate } from '../lib/utils';
+import { cn, fmtDate } from '../lib/utils';
 
 export function Wallet() {
   const { methods } = useData();
@@ -54,7 +54,7 @@ export function Wallet() {
                   </div>
                   {verifying ? (
                     <Badge tone="pending" pulse>
-                      Verifying · {countdown(b.verifiesAt! - now)}
+                      Verifying
                     </Badge>
                   ) : b.isDefault ? (
                     <Badge tone="iris">Default</Badge>
@@ -128,6 +128,8 @@ function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClos
   const usedBy = plans.filter((p) => p.methodId === method?.id && p.status === 'active').length;
   const others = methods.filter((m) => m.id !== method?.id);
   const replacement = others.find((m) => m.isDefault) ?? others[0];
+  // Removal needs another method that can make payments right away.
+  const canRemove = others.some((m) => !methodIssue(m));
   return (
     <Sheet open={!!method} onClose={onClose} title={method ? methodLabel(method) : ''}>
       {method && (
@@ -168,12 +170,22 @@ function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClos
             </Button>
           )}
           <AnimatePresence mode="wait" initial={false}>
-            {confirm ? (
+            {!canRemove ? (
+              <motion.div key="n" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+                <Button variant="danger" size="lg" block disabled>
+                  <Trash2 className="size-4" /> Remove
+                </Button>
+                <p className="text-center text-xs text-muted">
+                  {others.length ? 'Your other payment methods aren’t ready to use yet. ' : 'This is your only payment method. '}
+                  Add another one before removing it.
+                </p>
+              </motion.div>
+            ) : confirm ? (
               <motion.div key="c" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
                 {usedBy > 0 && (
                   <p className="rounded-xl bg-amber-400/10 px-3 py-2.5 text-sm text-amber-600 dark:text-amber-300">
                     {usedBy} active plan{usedBy === 1 ? ' pays' : 's pay'} from this method.{' '}
-                    {replacement ? `${usedBy === 1 ? 'It' : 'They'}’ll switch to ${methodLabel(replacement)}.` : 'AutoPay will turn off until you add another method.'}
+                    {replacement && `${usedBy === 1 ? 'It' : 'They'}’ll switch to ${methodLabel(replacement)}.`}
                   </p>
                 )}
                 <div className="flex gap-3">
@@ -185,9 +197,13 @@ function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClos
                   size="lg"
                   block
                   onClick={async () => {
-                    await removeMethod(method.id);
-                    toast({ title: 'Payment method removed' });
-                    onClose();
+                    try {
+                      await removeMethod(method.id);
+                      toast({ title: 'Payment method removed' });
+                      onClose();
+                    } catch (e) {
+                      toast({ tone: 'error', title: (e as Error).message });
+                    }
                   }}
                 >
                   Remove

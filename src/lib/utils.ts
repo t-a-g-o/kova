@@ -50,15 +50,6 @@ export const relativeDay = (ms: number, now = Date.now()) => {
   return fmtShort(ms);
 };
 
-export const countdown = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m`;
-  return `${Math.floor(h / 24)}d ${h % 24}h`;
-};
 
 export const confirmationCode = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

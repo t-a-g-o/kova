@@ -5,20 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import { planStats } from '../lib/finance';
 import { PaymentError, methodIssue, methodLabel, useData, useNow } from '../lib/store';
 import type { PaymentMethod, Plan } from '../lib/types';
-import { cn, countdown, fmtDate, fmtTime, money, round2 } from '../lib/utils';
+import { cn, fmtDate, money, round2 } from '../lib/utils';
 import { HoldButton, SuccessCheck } from './Celebration';
 import { MethodIcon } from './Logos';
 import { Button, Row, Sheet } from './ui';
 
 export type PayMode = 'next' | 'custom' | 'payoff';
 type Step = 'amount' | 'method' | 'review' | 'done';
-
-const postsIn = (secs: number, now: number) => {
-  if (secs < 90) return 'Within a minute';
-  if (secs < 3600) return `Within ${Math.round(secs / 60)} minutes`;
-  if (secs < 86_400) return `Within ${Math.round(secs / 3600)} hour${secs < 5400 ? '' : 's'}`;
-  return fmtDate(now + secs * 1000);
-};
 
 const methodKind = (m: PaymentMethod) => (m.kind === 'bank' ? `Bank transfer · ${m.accountType === 'savings' ? 'Savings' : 'Checking'}` : `${m.institution} card`);
 
@@ -51,7 +44,7 @@ export function MethodList({ value, onChange, now, onAdd }: { value?: string; on
                 {m.isDefault && <span className="ml-2 text-xs font-medium text-muted">Default</span>}
               </span>
               <span className="block truncate text-xs text-muted">
-                {issue === 'Verifying' && m.verifiesAt ? `Verifying · ready in ${countdown(m.verifiesAt - now)}` : issue ?? methodKind(m)}
+                {issue ?? methodKind(m)}
               </span>
             </span>
             <span className={cn('grid size-5 shrink-0 place-items-center rounded-full border-2', selected ? 'border-iris-500 bg-iris-500' : 'border-line')}>
@@ -85,7 +78,7 @@ export function PaySheet({
   onClose: () => void;
   onPaidOff: (info: { amount: number; saved: number }) => void;
 }) {
-  const { txns, methods, profile, pay, payoff } = useData();
+  const { txns, methods, pay, payoff } = useData();
   const nav = useNavigate();
   const now = useNow(1000);
   const stats = planStats(plan, txns, now);
@@ -180,8 +173,7 @@ export function PaySheet({
           </span>
           <h3 className="mt-5 font-display text-xl font-semibold">A payment is processing</h3>
           <p className="mt-2 max-w-xs text-sm text-muted">
-            {money(stats.pending)} toward {plan.name} is on its way. You can make another payment once it posts
-            {stats.pendingUntil ? ` in about ${countdown(stats.pendingUntil - now)}` : ''}.
+            {money(stats.pending)} toward {plan.name} is on its way. You can make another payment once it posts.
           </p>
           <Button size="lg" block className="mt-6" onClick={onClose}>
             Got it
@@ -263,7 +255,6 @@ export function PaySheet({
                 />
                 <Row label="To" value={<span className="block max-w-[200px] truncate">{plan.merchant} · {plan.name}</span>} />
                 <Row label="Payment date" value={`Today, ${fmtDate(now)}`} />
-                <Row label="Expected to post" value={postsIn(profile.pendingSeconds, now)} />
                 <Row label="Fee" value="Free" />
                 {mode === 'payoff' && <Row label="Interest waived" value={<span className="text-mint-600 dark:text-mint-400">−{money(stats.interestSaved)}</span>} />}
                 <Row label="Balance after" value={money(balanceAfter)} />
@@ -309,7 +300,7 @@ export function PaySheet({
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mt-6 w-full divide-y divide-line rounded-2xl bg-surface-2 px-4 text-left">
                 <Row label="Paid from" value={result.method} />
                 <Row label="New balance" value={money(result.balance)} />
-                <Row label="Status" value={<span className="text-amber-500 dark:text-amber-300">Pending · posts by {fmtTime(result.settlesAt)}</span>} />
+                <Row label="Status" value={<span className="text-amber-500 dark:text-amber-300">Pending</span>} />
                 <Row
                   label="Confirmation"
                   value={

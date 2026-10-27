@@ -14,7 +14,7 @@ import { AnimatedNumber, Badge, Button, Card, Empty, Input, ProgressRing, Row, S
 import { installmentLabel, planLabel, planStats, type InstallmentStatus } from '../lib/finance';
 import { methodIssue, methodLabel, useData, useNow } from '../lib/store';
 import type { Txn } from '../lib/types';
-import { cn, countdown, fmtDate, fmtShort, money } from '../lib/utils';
+import { cn, fmtDate, fmtShort, money } from '../lib/utils';
 
 const instStyle: Record<InstallmentStatus, { label: string; cls: string }> = {
   paid: { label: 'Paid', cls: 'bg-mint-400 text-[#04140e]' },
@@ -134,7 +134,7 @@ export function PlanDetail() {
                 <Clock className="size-5 shrink-0 text-amber-500 dark:text-amber-300" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">{money(s.pending)} payment processing</p>
-                  <p className="text-xs text-muted">You can make another payment once it posts · about {countdown(s.pendingUntil - now)}</p>
+                  <p className="text-xs text-muted">You can make another payment once it posts.</p>
                 </div>
               </div>
             )}

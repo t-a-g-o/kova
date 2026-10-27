@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { txnStatus } from '../lib/finance';
 import { useData, useNow } from '../lib/store';
 import type { Txn, TxnStatus } from '../lib/types';
-import { cn, countdown, fmtDate, fmtTime, money } from '../lib/utils';
+import { cn, fmtDate, fmtTime, money } from '../lib/utils';
 import { PlanThumb } from './PlanThumb';
 import { Badge, Row, Sheet } from './ui';
 
@@ -61,7 +61,7 @@ export function TxnRow({ txn, onClick, showPlan = true, now }: { txn: Txn; onCli
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{showPlan && plan ? plan.name : txnTitle(txn)}</p>
         <p className="truncate text-xs text-muted">
-          {showPlan && plan ? txnTitle(txn) : fmtDate(txn.createdAt)} · {status === 'pending' ? `Posts in ${countdown(txn.settlesAt - now)}` : fmtTime(txn.createdAt)}
+          {showPlan && plan ? txnTitle(txn) : fmtDate(txn.createdAt)} · {status === 'pending' ? 'Processing' : fmtTime(txn.createdAt)}
         </p>
       </div>
       <div className="flex flex-col items-end gap-1">
@@ -90,7 +90,7 @@ export function TxnSheet({ txn, onClose }: { txn: Txn | null; onClose: () => voi
     ? [
         { label: 'Initiated', at: txn.createdAt, done: true },
         { label: 'Processing', at: txn.createdAt + 1500, done: true },
-        { label: status === 'pending' ? `Posts in ${countdown(txn.settlesAt - now)}` : 'Posted', at: txn.settlesAt, done: status === 'completed' },
+        { label: status === 'pending' ? 'Posting' : 'Posted', at: txn.settlesAt, done: status === 'completed' },
       ]
     : [];
 
@@ -122,7 +122,7 @@ export function TxnSheet({ txn, onClose }: { txn: Txn | null; onClose: () => voi
                 <div className="min-w-0 pt-0.5">
                   <p className="text-sm font-semibold">{s.label}</p>
                   <p className="text-xs text-muted">
-                    {s.done || i < 2 ? `${fmtDate(s.at)} · ${fmtTime(s.at)}` : `Expected ${fmtTime(s.at)}`}
+                    {s.done || i < 2 ? `${fmtDate(s.at)} · ${fmtTime(s.at)}` : 'In progress'}
                   </p>
                 </div>
               </div>
