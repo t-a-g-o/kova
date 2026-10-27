@@ -121,11 +121,13 @@ export function Wallet() {
 }
 
 function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClose: () => void }) {
-  const { setDefaultMethod, removeMethod, plans } = useData();
+  const { setDefaultMethod, removeMethod, plans, methods } = useData();
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);
   useEffect(() => setConfirm(false), [method?.id]);
   const usedBy = plans.filter((p) => p.methodId === method?.id && p.status === 'active').length;
+  const others = methods.filter((m) => m.id !== method?.id);
+  const replacement = others.find((m) => m.isDefault) ?? others[0];
   return (
     <Sheet open={!!method} onClose={onClose} title={method ? methodLabel(method) : ''}>
       {method && (
@@ -167,7 +169,14 @@ function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClos
           )}
           <AnimatePresence mode="wait" initial={false}>
             {confirm ? (
-              <motion.div key="c" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex gap-3">
+              <motion.div key="c" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                {usedBy > 0 && (
+                  <p className="rounded-xl bg-amber-400/10 px-3 py-2.5 text-sm text-amber-600 dark:text-amber-300">
+                    {usedBy} active plan{usedBy === 1 ? ' pays' : 's pay'} from this method.{' '}
+                    {replacement ? `${usedBy === 1 ? 'It' : 'They'}’ll switch to ${methodLabel(replacement)}.` : 'AutoPay will turn off until you add another method.'}
+                  </p>
+                )}
+                <div className="flex gap-3">
                 <Button variant="secondary" size="lg" block onClick={() => setConfirm(false)}>
                   Keep
                 </Button>
@@ -183,6 +192,7 @@ function MethodSheet({ method, onClose }: { method: PaymentMethod | null; onClos
                 >
                   Remove
                 </Button>
+                </div>
               </motion.div>
             ) : (
               <motion.div key="r" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -205,8 +215,23 @@ const fmtCard = (v: string, amex: boolean) => {
 
 const ISSUERS = BANKS.filter((b) => b.issuer);
 
+/** Luhn checksum — catches typos in card numbers before they reach a processor. */
+const luhn = (digits: string) => {
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = +digits[digits.length - 1 - i];
+    if (i % 2) d = d * 2 > 9 ? d * 2 - 9 : d * 2;
+    sum += d;
+  }
+  return digits.length >= 13 && sum % 10 === 0;
+};
+
+/** ABA routing checksum (weights 3-7-1). */
+const validRouting = (r: string) =>
+  /^\d{9}$/.test(r) && [...r].reduce((sum, d, i) => sum + +d * [3, 7, 1][i % 3], 0) % 10 === 0;
+
 function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addMethod, profile } = useData();
+  const { addMethod, profile, methods } = useData();
   const toast = useToast();
   const [issuer, setIssuer] = useState('Chase');
   const [label, setLabel] = useState('');
@@ -237,10 +262,14 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
 
   const brand = detectBrand(num);
   const digits = num.replace(/\D/g, '');
-  const validNum = digits.length >= 15;
+  const duplicate = methods.some((m) => m.kind === 'card' && m.institution === brand && m.last4 === digits.slice(-4));
+  const validNum = luhn(digits) && !duplicate;
   const [mm, yy] = exp.split('/');
-  const validExp = /^\d{2}\/\d{2}$/.test(exp) && +mm >= 1 && +mm <= 12;
-  const validCvc = cvc.length >= 3;
+  const expFormat = /^\d{2}\/\d{2}$/.test(exp) && +mm >= 1 && +mm <= 12;
+  // A card is good through the last day of its expiry month.
+  const expired = expFormat && new Date(2000 + +yy, +mm, 1).getTime() <= Date.now();
+  const validExp = expFormat && !expired;
+  const validCvc = cvc.length >= (brand === 'Amex' ? 4 : 3);
 
   const pickIssuer = (name: string) => {
     setIssuer(name);
@@ -314,7 +343,7 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
               value={num}
               onChange={(e) => setNum(fmtCard(e.target.value, /^3[47]/.test(e.target.value.replace(/\D/g, ''))))}
               onFocus={() => setFlip(false)}
-              error={touched && !validNum ? 'Enter a valid card number.' : undefined}
+              error={touched && !validNum ? (duplicate ? 'This card is already in your wallet.' : 'Check your card number.') : undefined}
             />
             <Input
               label="Name on card"
@@ -337,7 +366,7 @@ function AddCardSheet({ open, onClose }: { open: boolean; onClose: () => void })
                   const d = e.target.value.replace(/\D/g, '').slice(0, 4);
                   setExp(d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d);
                 }}
-                error={touched && !validExp ? 'MM/YY' : undefined}
+                error={touched && !validExp ? (expired ? 'Card expired' : 'MM/YY') : undefined}
               />
               <Input
                 label="CVC"
@@ -407,7 +436,7 @@ function LinkBankSheet({ open, onClose }: { open: boolean; onClose: () => void }
 
   const connect = async () => {
     setTouched(true);
-    if (routing.length !== 9 || acct.length < 4) return;
+    if (!validRouting(routing) || acct.length < 4) return;
     setSaving(true);
     await Promise.all([
       addMethod({ kind: 'bank', institution: bank, nickname: nick.trim() || (type === 'checking' ? 'Checking' : 'Savings'), last4: acct.slice(-4), routingLast4: routing.slice(-4), accountType: type }),
@@ -464,7 +493,7 @@ function LinkBankSheet({ open, onClose }: { open: boolean; onClose: () => void }
               placeholder="9 digits"
               value={routing}
               onChange={(e) => setRouting(e.target.value.replace(/\D/g, '').slice(0, 9))}
-              error={touched && routing.length !== 9 ? 'Routing numbers are 9 digits.' : undefined}
+              error={touched && !validRouting(routing) ? (routing.length !== 9 ? 'Routing numbers are 9 digits.' : 'Check your routing number.') : undefined}
             />
             <Input
               label="Account number"

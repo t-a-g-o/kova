@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { brandById, brandForName, type Brand } from '../lib/brands';
 import { brandsMatching, parseProductLink, searchCatalog, type CatalogHit } from '../lib/catalog';
 import { buildSchedule, quote } from '../lib/finance';
-import { methodLabel, useData } from '../lib/store';
+import { methodIssue, methodLabel, useData } from '../lib/store';
 import type { Category, Plan, PlanType } from '../lib/types';
-import { cn, fmtShort, money, round2 } from '../lib/utils';
+import { cn, fmtDate, fmtShort, money, round2 } from '../lib/utils';
 import { SuccessCheck } from './Celebration';
 import { LogoTile, MethodIcon } from './Logos';
 import { CATEGORIES, PlanThumb } from './PlanThumb';
@@ -77,7 +77,7 @@ export function PhotoButton({ onPhoto, label = 'Add photo', className }: { onPho
 }
 
 export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addPlan, methods, defaultMethod } = useData();
+  const { addPlan, methods, defaultMethod, available } = useData();
   const nav = useNavigate();
   const [step, setStep] = useState<Step>('item');
   const [dir, setDir] = useState(1);
@@ -99,6 +99,8 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [backfill, setBackfill] = useState(true);
   const [autopay, setAutopay] = useState(true);
   const [methodId, setMethodId] = useState<string | undefined>();
+  const [agreed, setAgreed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [created, setCreated] = useState<Plan | null>(null);
 
   useEffect(() => {
@@ -120,10 +122,16 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
     setStart(todayStr());
     setBackfill(true);
     setAutopay(true);
+    setAgreed(false);
+    setFailed(null);
     setCreated(null);
   }, [open]);
 
-  useEffect(() => setMethodId(defaultMethod?.id), [defaultMethod?.id, open]);
+  const usableIds = methods.filter((m) => methodIssue(m) !== 'Expired').map((m) => m.id);
+  const firstUsable = usableIds.includes(defaultMethod?.id ?? '') ? defaultMethod?.id : usableIds[0];
+  useEffect(() => setMethodId(firstUsable), [firstUsable, open]);
+  // AutoPay can't run without somewhere to pull money from.
+  const autopayOn = autopay && !!methodId;
 
   const isLink = looksLikeUrl(query);
   const hits = useMemo(() => (isLink ? [] : searchCatalog(query, 6)), [query, isLink]);
@@ -186,16 +194,27 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
       startDate: parseDate(start),
       createdAt: Date.now(),
       status: 'active',
-      autopay,
+      autopay: autopayOn,
       methodId,
       orderNumber: '',
     }),
-    [name, merchant, category, resolvedBrand, imageUrl, priceN, downN, aprN, type, term, start, autopay, methodId],
+    [name, merchant, category, resolvedBrand, imageUrl, priceN, downN, aprN, type, term, start, autopayOn, methodId],
   );
   const q = quote(draft.price, type, draft.installments, draft.apr, draft.downPayment);
   const schedule = useMemo(() => buildSchedule(draft), [draft]);
   const past = schedule.filter((i) => i.dueDate < Date.now() - 10 * 60_000);
   const pastTotal = past.reduce((s, i) => s + i.amount, 0);
+  // What this plan adds to the outstanding balance once created (past and checkout payments excluded).
+  const paidAtStart = schedule
+    .filter((i) => i.dueDate <= Date.now() && (backfill || i.dueDate - draft.startDate < 5 * 60_000))
+    .reduce((s, i) => s + i.amount, 0);
+  const needed = round2(Math.max(0, q.total - paidAtStart));
+  const overLimit = needed > available + 0.005;
+  // A purchase made today with a down payment (or Pay in 4's first installment) has to be charged somewhere.
+  const dueToday = round2(
+    schedule.filter((i) => i.dueDate - draft.startDate < 5 * 60_000 && Date.now() - i.dueDate < 10 * 60_000).reduce((s, i) => s + i.amount, 0),
+  );
+  const needsMethod = dueToday > 0 && !methodId;
 
   const go = (s: Step) => {
     setDir(ORDER.indexOf(s) >= ORDER.indexOf(step) ? 1 : -1);
@@ -207,12 +226,19 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
   const submit = async () => {
     setDir(1);
     setStep('approving');
+    setFailed(null);
     const { id: _id, createdAt: _c, status: _s, orderNumber: _o, ...input } = draft;
-    const [plan] = await Promise.all([addPlan(input, backfill), new Promise((r) => setTimeout(r, 1400))]);
-    setCreated(plan);
-    setStep('approved');
+    try {
+      const [plan] = await Promise.all([addPlan(input, backfill), new Promise((r) => setTimeout(r, 1400))]);
+      setCreated(plan);
+      setStep('approved');
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : 'We couldn’t create this plan. Please try again.');
+      setStep('review');
+    }
   };
 
+  const nextAfterCreate = schedule.find((i) => i.dueDate > Date.now() + 10 * 60_000);
   const idx = ORDER.indexOf(step);
   const title = idx >= 0 ? ['What are you buying?', 'Choose your plan', 'Timing & payment', 'Review'][idx] : '';
   const showResults = query.trim().length > 0;
@@ -436,11 +462,12 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
                 <Row label="Interest" value={money(q.interest)} />
                 <Row label="Total of payments" value={<span className="font-display">{money(q.total)}</span>} className="border-t border-line" />
               </div>
+              <SpendingPower needed={needed} available={available} />
               <div className="flex gap-3 pt-1">
                 <Button variant="secondary" size="lg" onClick={() => go('item')} aria-label="Back">
                   <ArrowLeft className="size-5" />
                 </Button>
-                <Button size="lg" block onClick={() => go('timing')}>
+                <Button size="lg" block disabled={overLimit} onClick={() => go('timing')}>
                   Continue <ArrowRight className="size-5" />
                 </Button>
               </div>
@@ -464,7 +491,12 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
                 checked={backfill}
                 onChange={setBackfill}
               />
-              <ToggleRow title="AutoPay" body="Pay each installment automatically on its due date." checked={autopay} onChange={setAutopay} />
+              <ToggleRow
+                title="AutoPay"
+                body={methodId ? 'Pay each installment automatically on its due date.' : 'Add a bank or card in Wallet to turn on AutoPay.'}
+                checked={autopayOn}
+                onChange={(v) => methodId && setAutopay(v)}
+              />
               <div>
                 <p className="mb-2 text-[13px] font-semibold text-muted">Pay with</p>
                 {methods.length ? (
@@ -473,13 +505,17 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
                       <button
                         key={m.id}
                         type="button"
+                        disabled={!usableIds.includes(m.id)}
                         onClick={() => setMethodId(m.id)}
-                        className={cn('flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition', methodId === m.id ? 'border-iris-500 bg-iris-500/5' : 'border-line hover:border-iris-400')}
+                        className={cn(
+                          'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50',
+                          methodId === m.id ? 'border-iris-500 bg-iris-500/5' : 'border-line hover:border-iris-400',
+                        )}
                       >
                         <MethodIcon method={m} />
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-semibold">{methodLabel(m)}</span>
-                          <span className="block text-xs text-muted">{m.nickname}</span>
+                          <span className="block text-xs text-muted">{usableIds.includes(m.id) ? m.nickname : 'Expired'}</span>
                         </span>
                         <span className={cn('grid size-5 place-items-center rounded-full border-2 transition', methodId === m.id ? 'border-iris-500 bg-iris-500 text-white' : 'border-line')}>
                           {methodId === m.id && <Check className="size-3" strokeWidth={3.5} />}
@@ -488,14 +524,18 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
                     ))}
                   </div>
                 ) : (
-                  <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm text-muted">No payment methods yet. You can add a bank or card from Wallet any time.</p>
+                  <p className={cn('rounded-2xl px-4 py-3 text-sm', needsMethod ? 'bg-rose-500/10 text-rose-500' : 'bg-surface-2 text-muted')}>
+                    {needsMethod
+                      ? `${money(dueToday)} is due today. Add a bank or card in Wallet before confirming this plan.`
+                      : 'No payment methods yet. You can still create the plan and pay manually once you add a bank or card in Wallet.'}
+                  </p>
                 )}
               </div>
               <div className="flex gap-3 pt-1">
                 <Button variant="secondary" size="lg" onClick={() => go('plan')} aria-label="Back">
                   <ArrowLeft className="size-5" />
                 </Button>
-                <Button size="lg" block onClick={() => go('review')}>
+                <Button size="lg" block disabled={needsMethod} onClick={() => go('review')}>
                   Review <ArrowRight className="size-5" />
                 </Button>
               </div>
@@ -516,9 +556,23 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
                 <Row label="Plan" value={type === 'pay4' ? 'Pay in 4' : `${term} months`} />
                 <Row label="Each payment" value={money(q.perInstallment)} />
                 {draft.downPayment > 0 && <Row label="Down payment" value={money(draft.downPayment)} />}
-                <Row label="APR" value={`${draft.apr}%`} />
-                <Row label="Total of payments" value={money(q.total)} />
-                <Row label="AutoPay" value={autopay ? 'On' : 'Off'} />
+                <Row label="First payment" value={schedule[0] ? (schedule[0].dueDate <= Date.now() + 60_000 ? 'Today' : fmtDate(schedule[0].dueDate)) : '—'} />
+                <Row label="AutoPay" value={autopayOn ? `On · ${methodLabel(methods.find((m) => m.id === methodId))}` : 'Off'} />
+              </div>
+              {/* Truth in Lending-style box: the four numbers an installment loan shows up front. */}
+              <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line sm:grid-cols-4">
+                {[
+                  { l: 'APR', v: `${draft.apr.toFixed(2)}%`, h: 'Yearly cost of credit' },
+                  { l: 'Finance charge', v: money(q.interest), h: 'Interest you’ll pay' },
+                  { l: 'Amount financed', v: money(q.financed), h: 'Credit provided' },
+                  { l: 'Total of payments', v: money(q.total), h: 'Paid when complete' },
+                ].map((c, i) => (
+                  <div key={c.l} className={cn('p-3', i % 2 === 1 && 'border-l border-line', i >= 2 && 'border-t border-line sm:border-t-0', i === 2 && 'sm:border-l')}>
+                    <p className="text-[11px] font-semibold tracking-wide text-faint uppercase">{c.l}</p>
+                    <p className="tabular mt-0.5 font-display font-bold">{c.v}</p>
+                    <p className="text-[11px] text-muted">{c.h}</p>
+                  </div>
+                ))}
               </div>
               <div>
                 <p className="mb-2 text-[13px] font-semibold text-muted">Schedule</p>
@@ -535,14 +589,25 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
                   {schedule.length > 4 && <p className="px-1 text-xs text-faint">+ {schedule.length - 4} more payments</p>}
                 </div>
               </div>
-              <p className="text-xs leading-relaxed text-faint">
-                By confirming, you agree to the payment schedule above. Payments are drawn from {methodLabel(methods.find((m) => m.id === methodId))}.
-              </p>
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-2 p-4 text-xs leading-relaxed text-muted">
+                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-iris-500" />
+                <span>
+                  I agree to the payment schedule and loan terms above
+                  {autopayOn
+                    ? `, and authorize Kova to charge ${methodLabel(methods.find((m) => m.id === methodId))} automatically on each due date. I can turn AutoPay off at any time.`
+                    : '.'}
+                </span>
+              </label>
+              {failed && (
+                <p role="alert" className="rounded-xl bg-rose-500/10 px-3 py-2.5 text-sm text-rose-500">
+                  {failed}
+                </p>
+              )}
               <div className="flex gap-3">
                 <Button variant="secondary" size="lg" onClick={() => go('timing')} aria-label="Back">
                   <ArrowLeft className="size-5" />
                 </Button>
-                <Button size="lg" block onClick={submit}>
+                <Button size="lg" block disabled={!agreed || overLimit} onClick={submit}>
                   Confirm plan
                 </Button>
               </div>
@@ -552,7 +617,8 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
           {step === 'approving' && (
             <div className="flex flex-col items-center py-16 text-center">
               <motion.span className="size-12 rounded-full border-[3px] border-iris-500/20 border-t-iris-500" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }} />
-              <p className="mt-6 font-semibold">Just a moment…</p>
+              <p className="mt-6 font-semibold">Confirming your plan…</p>
+              <p className="mt-1 text-sm text-muted">This only takes a few seconds.</p>
             </div>
           )}
 
@@ -568,6 +634,8 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }} className="mt-6 w-full rounded-2xl bg-surface-2 px-4 py-1 text-left">
                 <Row label="Order" value={<span className="font-mono text-[13px]">{created.orderNumber}</span>} />
                 <Row label="Each payment" value={money(q.perInstallment)} />
+                {nextAfterCreate && <Row label="Next payment due" value={fmtDate(nextAfterCreate.dueDate)} />}
+                <Row label="AutoPay" value={created.autopay ? 'On' : 'Off'} />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }} className="mt-6 w-full">
                 <Button
@@ -605,6 +673,23 @@ function PlanOption({ selected, onClick, title, sub, badge }: { selected: boolea
       </span>
       <span className="rounded-full bg-mint-400/15 px-2.5 py-1 text-xs font-bold text-mint-600 dark:text-mint-400">{badge}</span>
     </button>
+  );
+}
+
+function SpendingPower({ needed, available }: { needed: number; available: number }) {
+  const over = needed > available + 0.005;
+  return (
+    <div className={cn('rounded-2xl border px-4 py-3 text-sm', over ? 'border-rose-500/30 bg-rose-500/10' : 'border-line')}>
+      <div className="flex items-center justify-between gap-3">
+        <span className={over ? 'font-semibold text-rose-500' : 'text-muted'}>{over ? 'Over your spending power' : 'Spending power after this plan'}</span>
+        <span className="tabular font-semibold">{money(over ? available : available - needed)}</span>
+      </div>
+      {over && (
+        <p className="mt-1 text-xs text-muted">
+          This plan needs {money(needed)} and you have {money(available)} available. Try a down payment or a lower price, or pay down another plan first.
+        </p>
+      )}
+    </div>
   );
 }
 

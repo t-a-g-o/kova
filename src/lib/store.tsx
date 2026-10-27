@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from './auth';
 import { dataApi, type Coll, type Snapshot } from './db';
-import { buildSchedule, planStats } from './finance';
+import { buildSchedule, installmentLabel, planStats } from './finance';
 import type { PaymentMethod, Plan, Profile, ThemePref, Txn } from './types';
-import { DAY, addMonths, confirmationCode, orderNumber, round2, uid } from './utils';
+import { DAY, addMonths, confirmationCode, money, orderNumber, round2, uid } from './utils';
 
 export type PlanInput = Omit<Plan, 'id' | 'createdAt' | 'status' | 'orderNumber'>;
 export type MethodInput = Omit<PaymentMethod, 'id' | 'createdAt' | 'isDefault'>;
@@ -14,7 +14,7 @@ const DEFAULT_PROFILE: Omit<Profile, 'displayName' | 'email' | 'memberSince'> = 
   theme: 'dark',
 };
 
-export const methodLabel = (m?: PaymentMethod) => (m ? `${m.institution} ••${m.last4}` : 'Kova balance');
+export const methodLabel = (m?: PaymentMethod) => (m ? `${m.institution} ••${m.last4}` : 'No payment method');
 
 /** Why a method can't be charged right now, or null if it's good to use. */
 export function methodIssue(m: PaymentMethod, now = Date.now()): string | null {
@@ -35,6 +35,8 @@ interface DataCtx {
   methods: PaymentMethod[];
   profile: Profile;
   defaultMethod?: PaymentMethod;
+  /** Spending power left after every active plan's outstanding balance. */
+  available: number;
   addPlan(input: PlanInput, backfill: boolean): Promise<Plan>;
   updatePlan(id: string, patch: Partial<Plan>): Promise<void>;
   deletePlan(id: string): Promise<void>;
@@ -83,7 +85,7 @@ function backfillTxns(plan: Plan, until: number, methodLabelStr: string, methodI
       planId: plan.id,
       type: 'payment',
       amount: inst.amount,
-      description: inst.kind === 'down' ? `Down payment · ${plan.name}` : `Payment ${inst.index + 1} · ${plan.name}`,
+      description: `${installmentLabel(plan, inst)} · ${plan.name}`,
       methodId,
       methodLabel: methodLabelStr,
       createdAt: at,
@@ -141,6 +143,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const pendingMs = profile.pendingSeconds * 1000;
 
+  const outstanding = useMemo(
+    () => round2(snap.plans.filter((p) => p.status === 'active').reduce((sum, p) => sum + planStats(p, snap.txns).remaining, 0)),
+    [snap.plans, snap.txns],
+  );
+  const available = Math.max(0, round2(profile.spendingPower - outstanding));
+
   // Plans with a payment being submitted right now — blocks double-taps before the snapshot catches up.
   const inFlight = useRef(new Set<string>());
 
@@ -164,19 +172,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addPlan = useCallback<DataCtx['addPlan']>(
     async (input, backfill) => {
       const plan: Plan = { ...input, id: uid('p_'), createdAt: Date.now(), status: 'active', orderNumber: orderNumber() };
-      const m = findMethod(plan.methodId);
+      const m = methods.find((x) => x.id === plan.methodId);
+      if (!m) plan.autopay = false;
       const now = Date.now();
       let history = backfillTxns(plan, now, methodLabel(m), m?.id);
       if (!backfill) {
         // Only the purchase plus whatever was due at checkout.
         history = history.filter((t) => t.type === 'purchase' || t.createdAt - plan.startDate < 5 * 60_000);
       }
+      if (!m && history.some((t) => t.type === 'payment' && t.createdAt === now)) {
+        throw new PaymentError('A payment is due today. Add a payment method first.');
+      }
+      const adds = planStats(plan, history, now).remaining;
+      if (adds > available + 0.005) {
+        throw new PaymentError(`This plan needs ${money(adds)} of spending power and you have ${money(available)} available.`);
+      }
       // Anything at checkout "today" should still look like it's processing.
       history = history.map((t) => (t.type === 'payment' && now - t.createdAt < 10 * 60_000 ? { ...t, createdAt: now, settlesAt: now + pendingMs } : t));
       await dataApi.putMany(u!, [{ coll: 'plans', item: plan }, ...history.map((item) => ({ coll: 'txns' as Coll, item }))]);
       return plan;
     },
-    [u, findMethod, pendingMs],
+    [u, methods, available, pendingMs],
   );
 
   const updatePlan = useCallback<DataCtx['updatePlan']>(
@@ -279,10 +295,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     async (id) => {
       const rest = snap.methods.filter((m) => m.id !== id);
       const wasDefault = snap.methods.find((m) => m.id === id)?.isDefault;
+      const next = wasDefault ? rest[0] : rest.find((m) => m.isDefault) ?? rest[0];
       await dataApi.remove(u!, 'methods', id);
-      if (wasDefault && rest[0]) await dataApi.put(u!, 'methods', { ...rest[0], isDefault: true });
+      // Plans paying from this method move to the (new) default; with nothing left, AutoPay turns off.
+      const moved = snap.plans
+        .filter((p) => p.methodId === id && p.status === 'active')
+        .map((p) => ({ coll: 'plans' as Coll, item: { ...p, methodId: next?.id, autopay: next ? p.autopay : false } }));
+      await dataApi.putMany(u!, [...(wasDefault && next ? [{ coll: 'methods' as Coll, item: { ...next, isDefault: true } }] : []), ...moved]);
     },
-    [u, snap.methods],
+    [u, snap.methods, snap.plans],
   );
 
   const setDefaultMethod = useCallback<DataCtx['setDefaultMethod']>(
@@ -435,8 +456,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!due || due.dueDate > now || due.dueDate < plan.createdAt - DAY) continue;
         const id = `auto_${plan.id}_${due.index}`;
         if (autopayRan.current.has(id) || snap.txns.some((t) => t.id === id)) continue;
-        autopayRan.current.add(id);
         const m = findMethod(plan.methodId);
+        // No usable method: leave it due rather than inventing a funding source.
+        if (!m || methodIssue(m, now)) continue;
+        autopayRan.current.add(id);
         writes.push({
           coll: 'txns',
           item: {
@@ -469,6 +492,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     methods,
     profile,
     defaultMethod,
+    available,
     addPlan,
     updatePlan,
     deletePlan,

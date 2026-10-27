@@ -135,5 +135,13 @@ export function planStats(plan: Plan, txns: Txn[], now = Date.now()): PlanStats 
   };
 }
 
+/** "Down payment" or "Payment 3 of 12" — the down payment doesn't count toward the numbered installments. */
+export function installmentLabel(plan: Pick<Plan, 'type' | 'installments' | 'downPayment'>, inst: Pick<Installment, 'index' | 'kind'>) {
+  if (plan.type === 'pay4') return `Payment ${inst.index + 1} of 4`;
+  if (inst.kind === 'down') return 'Down payment';
+  const n = inst.index + (plan.downPayment > 0 ? 0 : 1);
+  return `Payment ${n} of ${plan.installments}`;
+}
+
 export const planLabel = (p: Pick<Plan, 'type' | 'installments'>) =>
   p.type === 'pay4' ? 'Pay in 4 · every 2 weeks' : `${p.installments} monthly payments`;

@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ArrowRight, Plus, Wand2 } from 'lucide-react';
+import { ArrowRight, CreditCard, Plus, Wand2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUI } from '../components/AppShell';
@@ -19,7 +19,7 @@ const fade = (i = 0) => ({
 });
 
 export function Home() {
-  const { plans, txns, profile, ready, loadSample } = useData();
+  const { plans, txns, methods, profile, ready, loadSample } = useData();
   const { openNewPlan } = useUI();
   const nav = useNavigate();
   const toast = useToast();
@@ -61,6 +61,7 @@ export function Home() {
   const next = nextUp[0];
   const payable = nextUp.find((n) => !n.processing);
   const first = (profile.displayName || '').split(' ')[0];
+  const isNew = now - profile.memberSince < DAY && plans.length <= 1;
 
   if (!ready) {
     return (
@@ -76,7 +77,7 @@ export function Home() {
     <div>
       <motion.div {...fade()} className="mb-6 flex flex-wrap items-end justify-between gap-4 lg:mb-8">
         <div>
-          <p className="text-sm text-muted">{first ? `Welcome back, ${first}` : 'Welcome back'}</p>
+          <p className="text-sm text-muted">{(isNew ? 'Welcome' : 'Welcome back') + (first ? `, ${first}` : '')}</p>
           <h1 className="mt-0.5 text-2xl font-semibold tracking-tight lg:text-[28px]">Overview</h1>
         </div>
         <div className="flex gap-2">
@@ -116,6 +117,22 @@ export function Home() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {methods.length === 0 && (
+            <motion.div {...fade(0)}>
+              <Card className="flex flex-wrap items-center gap-4 border-amber-400/30 bg-amber-400/5 px-5 py-4">
+                <span className="grid size-10 place-items-center rounded-xl bg-amber-400/15 text-amber-500 dark:text-amber-300">
+                  <CreditCard className="size-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">Add a payment method</p>
+                  <p className="text-sm text-muted">Link a bank or card so you can make payments and use AutoPay.</p>
+                </div>
+                <Button size="sm" onClick={() => nav('/wallet')}>
+                  Add method
+                </Button>
+              </Card>
+            </motion.div>
+          )}
           {/* Summary */}
           <motion.div {...fade(1)}>
             <Card className="grid grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-line">
@@ -226,9 +243,9 @@ export function Home() {
                             <PlanThumb plan={plan} size={32} />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium">{plan.name}</p>
-                              <p className={cn('text-xs', due.overdue ? 'text-rose-500' : processing ? 'text-amber-500 dark:text-amber-300' : 'text-muted')}>
+                              <p className={cn('text-xs', due.overdue ? 'text-rose-500' : 'text-muted')}>
                                 {due.overdue ? 'Past due' : relativeDay(due.dueDate, now)}
-                                {processing ? ' · Payment processing' : plan.autopay ? ' · AutoPay' : ''}
+                                {processing ? ' · Last payment still processing' : plan.autopay ? ' · AutoPay' : ''}
                               </p>
                             </div>
                             <span className="tabular text-sm font-medium">{money(due.amount)}</span>

@@ -9,8 +9,8 @@ import { PhotoButton } from '../components/NewPlanSheet';
 import { useToast } from '../components/Toast';
 import { TxnRow, TxnSheet } from '../components/Txn';
 import { AnimatedNumber, Badge, Button, Card, Empty, Input, ProgressRing, Row, Sheet, Toggle } from '../components/ui';
-import { planLabel, planStats, type InstallmentStatus } from '../lib/finance';
-import { useData, useNow } from '../lib/store';
+import { installmentLabel, planLabel, planStats, type InstallmentStatus } from '../lib/finance';
+import { methodIssue, useData, useNow } from '../lib/store';
 import type { Txn } from '../lib/types';
 import { cn, countdown, fmtDate, fmtShort, money } from '../lib/utils';
 
@@ -27,7 +27,7 @@ export function PlanDetail() {
   const loc = useLocation();
   const nav = useNavigate();
   const toast = useToast();
-  const { plans, txns, updatePlan, deletePlan, ready } = useData();
+  const { plans, txns, methods, updatePlan, deletePlan, ready } = useData();
   const now = useNow(1000);
   const plan = plans.find((p) => p.id === id);
   const [mode, setMode] = useState<PayMode | null>(null);
@@ -58,6 +58,8 @@ export function PlanDetail() {
   const paid = plan.status === 'paid';
   const planTxns = txns.filter((t) => t.planId === plan.id);
   const schedule = showAll ? s.schedule : s.schedule.slice(0, 8);
+  const autopayMethod = methods.find((m) => m.id === plan.methodId) ?? methods.find((m) => m.isDefault);
+  const autopayIssue = !autopayMethod ? 'Add a payment method' : methodIssue(autopayMethod, now);
 
   return (
     <div>
@@ -167,10 +169,10 @@ export function PlanDetail() {
                   >
                     {i < schedule.length - 1 && <span className={cn('absolute top-9 left-[13px] h-[calc(100%-22px)] w-0.5', inst.status === 'paid' ? 'bg-mint-400/60' : 'bg-line')} />}
                     <span className={cn('relative z-10 grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold', st.cls)}>
-                      {inst.status === 'paid' ? <Check className="size-3.5" strokeWidth={3} /> : inst.status === 'processing' ? <Clock className="size-3.5" /> : inst.index + 1}
+                      {inst.status === 'paid' ? <Check className="size-3.5" strokeWidth={3} /> : inst.status === 'processing' ? <Clock className="size-3.5" /> : inst.kind === 'down' && plan.type === 'monthly' ? 'D' : inst.index + (plan.type === 'monthly' && plan.downPayment > 0 ? 0 : 1)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold">{inst.kind === 'down' ? 'Down payment' : `Payment ${inst.index + 1}`}</p>
+                      <p className="text-sm font-semibold">{installmentLabel(plan, inst)}</p>
                       <p className="text-xs text-muted">{fmtDate(inst.dueDate)}</p>
                     </div>
                     <span className={cn('hidden rounded-full px-2 py-0.5 text-[11px] font-semibold sm:inline', inst.status === 'upcoming' ? 'text-faint' : '', inst.status === 'overdue' && 'text-rose-500', inst.status === 'due' && 'text-iris-500')}>
@@ -221,13 +223,28 @@ export function PlanDetail() {
                 <Toggle
                   checked={plan.autopay}
                   onChange={(v) => {
-                    void updatePlan(plan.id, { autopay: v });
+                    if (v && !methods.length) {
+                      toast({ tone: 'error', title: 'Add a payment method first', body: 'AutoPay needs a bank or card to pay from.' });
+                      return;
+                    }
+                    void updatePlan(plan.id, { autopay: v, methodId: plan.methodId ?? autopayMethod?.id });
                     toast({ tone: 'success', title: v ? 'AutoPay turned on' : 'AutoPay turned off' });
                   }}
                   label="AutoPay"
                 />
               </div>
-              <MethodPicker label="AutoPay from" value={plan.methodId} onChange={(mid) => void updatePlan(plan.id, { methodId: mid })} />
+              {methods.length > 0 ? (
+                <MethodPicker label="AutoPay from" value={autopayMethod?.id} onChange={(mid) => void updatePlan(plan.id, { methodId: mid })} />
+              ) : (
+                <Link to="/wallet" className="block rounded-2xl border border-dashed border-line px-4 py-3 text-sm font-semibold text-muted transition hover:border-iris-400 hover:text-ink">
+                  + Add a bank or card
+                </Link>
+              )}
+              {plan.autopay && autopayIssue && (
+                <p className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-300">
+                  AutoPay is paused: {autopayIssue === 'Expired' ? 'this card has expired. Choose another method.' : autopayIssue === 'Verifying' ? 'this bank is still verifying.' : 'add a payment method to resume.'}
+                </p>
+              )}
             </Card>
           )}
 
@@ -287,7 +304,7 @@ function Stat({ label, value, sub, big, className }: { label: string; value: Rea
   return (
     <div className={cn('rounded-2xl bg-surface-2 px-4 py-3.5', className)}>
       <p className="text-xs font-semibold text-muted">{label}</p>
-      <p className={cn('tabular mt-0.5 font-display font-bold', big ? 'text-2xl' : 'text-lg')}>{value}</p>
+      <p className={cn('tabular mt-0.5 font-display font-bold', big ? 'text-xl sm:text-2xl' : 'text-lg')}>{value}</p>
       {sub && <p className="text-xs text-muted">{sub}</p>}
     </div>
   );

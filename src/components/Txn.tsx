@@ -69,7 +69,11 @@ export function TxnRow({ txn, onClick, showPlan = true, now }: { txn: Txn; onCli
           {isPayment ? '−' : ''}
           {money(txn.amount)}
         </span>
-        {status !== 'completed' ? <StatusBadge status={status} /> : <span className="text-xs text-faint">{txn.methodLabel?.split(' ')[0] ?? 'Kova'}</span>}
+        {status !== 'completed' ? (
+          <StatusBadge status={status} />
+        ) : (
+          <span className="text-xs text-faint">{isPayment && txn.methodId ? txn.methodLabel : 'Completed'}</span>
+        )}
       </div>
     </motion.button>
   );
@@ -128,7 +132,7 @@ export function TxnSheet({ txn, onClose }: { txn: Txn | null; onClose: () => voi
           <div className="divide-y divide-line">
             {plan && <Row label="Item" value={<Link to={`/plans/${plan.id}`} onClick={onClose} className="text-iris-500 hover:underline">{plan.name}</Link>} />}
             {plan && <Row label="Merchant" value={plan.merchant} />}
-            {txn.type !== 'purchase' && <Row label="Paid from" value={txn.methodLabel ?? 'Kova balance'} />}
+            {txn.type !== 'purchase' && <Row label="Paid from" value={txn.methodId ? txn.methodLabel : '—'} />}
             {txn.auto && <Row label="Type" value="AutoPay" />}
             {plan && <Row label="Order" value={<span className="font-mono text-[13px]">{plan.orderNumber}</span>} />}
             <Row
