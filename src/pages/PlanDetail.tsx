@@ -3,14 +3,16 @@ import { ArrowLeft, Check, Clock, Pencil, Trash2, Trophy, Zap } from 'lucide-rea
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Celebration } from '../components/Celebration';
-import { MethodPicker, PaySheet, type PayMode } from '../components/PaySheet';
+import { AutoPaySheet } from '../components/AutoPaySheet';
+import { MethodIcon } from '../components/Logos';
+import { PaySheet, type PayMode } from '../components/PaySheet';
 import { PlanThumb } from '../components/PlanThumb';
 import { PhotoButton } from '../components/NewPlanSheet';
 import { useToast } from '../components/Toast';
 import { TxnRow, TxnSheet } from '../components/Txn';
-import { AnimatedNumber, Badge, Button, Card, Empty, Input, ProgressRing, Row, Sheet, Toggle } from '../components/ui';
+import { AnimatedNumber, Badge, Button, Card, Empty, Input, ProgressRing, Row, Sheet } from '../components/ui';
 import { installmentLabel, planLabel, planStats, type InstallmentStatus } from '../lib/finance';
-import { methodIssue, useData, useNow } from '../lib/store';
+import { methodIssue, methodLabel, useData, useNow } from '../lib/store';
 import type { Txn } from '../lib/types';
 import { cn, countdown, fmtDate, fmtShort, money } from '../lib/utils';
 
@@ -27,7 +29,9 @@ export function PlanDetail() {
   const loc = useLocation();
   const nav = useNavigate();
   const toast = useToast();
-  const { plans, txns, methods, updatePlan, deletePlan, ready } = useData();
+  const { plans, txns, methods, profile, updatePlan, deletePlan, ready } = useData();
+  // Kova sets the terms; editing is only possible from Demo controls.
+  const canEdit = !!profile.demoEditing;
   const now = useNow(1000);
   const plan = plans.find((p) => p.id === id);
   const [mode, setMode] = useState<PayMode | null>(null);
@@ -35,6 +39,7 @@ export function PlanDetail() {
   const [openTxn, setOpenTxn] = useState<Txn | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [autopayOpen, setAutopayOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
@@ -74,14 +79,14 @@ export function PlanDetail() {
             <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
               <div className="relative w-fit">
                 <PlanThumb plan={plan} size={88} />
-                <PhotoButton
+                {canEdit && <PhotoButton
                   label={plan.imageUrl ? 'Edit' : 'Photo'}
                   className="absolute -right-2 -bottom-2 border-surface bg-surface px-2 py-1 shadow-md"
                   onPhoto={(img) => {
                     void updatePlan(plan.id, { imageUrl: img });
                     toast({ tone: 'success', title: 'Photo updated' });
                   }}
-                />
+                />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -195,9 +200,11 @@ export function PlanDetail() {
           <Card className="p-5">
             <div className="mb-1 flex items-center justify-between">
               <h2 className="font-display font-bold">Details</h2>
-              <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 text-sm font-semibold text-iris-500">
-                <Pencil className="size-3.5" /> Edit
-              </button>
+              {canEdit && (
+                <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 text-sm font-semibold text-iris-500">
+                  <Pencil className="size-3.5" /> Edit
+                </button>
+              )}
             </div>
             <div className="divide-y divide-line">
               <Row label="Purchase price" value={money(plan.price)} />
@@ -220,24 +227,24 @@ export function PlanDetail() {
                   <p className="text-sm font-semibold">AutoPay</p>
                   <p className="text-xs text-muted">{plan.autopay ? 'Payments are made on each due date' : 'Off — pay manually'}</p>
                 </div>
-                <Toggle
-                  checked={plan.autopay}
-                  onChange={(v) => {
-                    if (v && !methods.length) {
-                      toast({ tone: 'error', title: 'Add a payment method first', body: 'AutoPay needs a bank or card to pay from.' });
-                      return;
-                    }
-                    void updatePlan(plan.id, { autopay: v, methodId: plan.methodId ?? autopayMethod?.id });
-                    toast({ tone: 'success', title: v ? 'AutoPay turned on' : 'AutoPay turned off' });
-                  }}
-                  label="AutoPay"
-                />
+                <Badge tone={plan.autopay ? 'iris' : 'neutral'}>{plan.autopay ? 'On' : 'Off'}</Badge>
               </div>
+              {plan.autopay && autopayMethod && (
+                <div className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
+                  <MethodIcon method={autopayMethod} size={30} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted">Pays from</p>
+                    <p className="truncate text-sm font-semibold">{methodLabel(autopayMethod)}</p>
+                  </div>
+                </div>
+              )}
               {methods.length > 0 ? (
-                <MethodPicker label="AutoPay from" value={autopayMethod?.id} onChange={(mid) => void updatePlan(plan.id, { methodId: mid })} />
+                <Button variant={plan.autopay ? 'secondary' : 'primary'} block onClick={() => setAutopayOpen(true)}>
+                  {plan.autopay ? 'Manage AutoPay' : 'Set up AutoPay'}
+                </Button>
               ) : (
-                <Link to="/wallet" className="block rounded-2xl border border-dashed border-line px-4 py-3 text-sm font-semibold text-muted transition hover:border-iris-400 hover:text-ink">
-                  + Add a bank or card
+                <Link to="/wallet" className="block rounded-2xl border border-dashed border-line px-4 py-3 text-center text-sm font-semibold text-muted transition hover:border-iris-400 hover:text-ink">
+                  Add a bank or card to use AutoPay
                 </Link>
               )}
               {plan.autopay && autopayIssue && (
@@ -259,9 +266,11 @@ export function PlanDetail() {
             </div>
           </Card>
 
-          <button onClick={() => setConfirmDelete(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-rose-500 transition hover:bg-rose-500/10">
-            <Trash2 className="size-4" /> Delete plan
-          </button>
+          {canEdit && (
+            <button onClick={() => setConfirmDelete(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-rose-500 transition hover:bg-rose-500/10">
+              <Trash2 className="size-4" /> Delete plan
+            </button>
+          )}
         </div>
       </div>
 
@@ -275,6 +284,7 @@ export function PlanDetail() {
         onClose={() => setCelebrate(null)}
       />
       <TxnSheet txn={openTxn} onClose={() => setOpenTxn(null)} />
+      {!paid && <AutoPaySheet plan={plan} open={autopayOpen} onClose={() => setAutopayOpen(false)} />}
       <EditPlanSheet open={editOpen} onClose={() => setEditOpen(false)} planId={plan.id} />
       <Sheet open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete this plan?">
         <p className="text-muted">This removes {plan.name} and all of its payment history. This can’t be undone.</p>

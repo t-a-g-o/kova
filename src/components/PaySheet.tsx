@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertCircle, ArrowLeft, Check, ChevronDown, Clock, Copy, Loader2, Lock, Plus } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Clock, Copy, Loader2, Lock, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { planStats } from '../lib/finance';
@@ -22,50 +22,8 @@ const postsIn = (secs: number, now: number) => {
 
 const methodKind = (m: PaymentMethod) => (m.kind === 'bank' ? `Bank transfer · ${m.accountType === 'savings' ? 'Savings' : 'Checking'}` : `${m.institution} card`);
 
-/** Compact dropdown, used for the plan's AutoPay method. */
-export function MethodPicker({ value, onChange, label = 'Pay from' }: { value?: string; onChange: (id: string) => void; label?: string }) {
-  const { methods } = useData();
-  const [open, setOpen] = useState(false);
-  const cur = methods.find((m) => m.id === value);
-  return (
-    <div className="rounded-2xl border border-line">
-      <button type="button" onClick={() => methods.length > 1 && setOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-        <MethodIcon method={cur} />
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs text-muted">{label}</span>
-          <span className="block truncate text-sm font-semibold">{methodLabel(cur)}</span>
-        </span>
-        {methods.length > 1 && <ChevronDown className={cn('size-4 text-muted transition', open && 'rotate-180')} />}
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-            <div className="space-y-1 border-t border-line p-2">
-              {methods.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(m.id);
-                    setOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sm transition hover:bg-surface-2"
-                >
-                  <MethodIcon method={m} size={28} />
-                  <span className="flex-1 font-semibold">{methodLabel(m)}</span>
-                  {m.id === value && <Check className="size-4 text-iris-500" />}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 /** Full list of methods as radio options. Unusable ones are shown but disabled. */
-function MethodList({ value, onChange, now, onAdd }: { value?: string; onChange: (id: string) => void; now: number; onAdd: () => void }) {
+export function MethodList({ value, onChange, now, onAdd }: { value?: string; onChange: (id: string) => void; now: number; onAdd: () => void }) {
   const { methods } = useData();
   return (
     <div role="radiogroup" aria-label="Payment method" className="space-y-2">

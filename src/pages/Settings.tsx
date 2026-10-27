@@ -13,6 +13,7 @@ import {
   Mail,
   Moon,
   Palette,
+  Pencil,
   Plus,
   RotateCcw,
   ShieldCheck,
@@ -83,15 +84,11 @@ function Item({ label, hint, children, className }: { label: ReactNode; hint?: R
 }
 
 export function Settings() {
-  const { user, signOut, rename, reset } = useAuth();
+  const { user, signOut, reset } = useAuth();
   const { profile, updateProfile, plans, txns, methods, defaultMethod } = useData();
   const toast = useToast();
-  const [name, setName] = useState(profile.displayName);
-  const [editingName, setEditingName] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
-
-  useEffect(() => setName(profile.displayName), [profile.displayName]);
 
   const notifs = { ...DEFAULT_NOTIFS, ...profile.notifications };
   const setNotif = (k: keyof NotificationPrefs, v: boolean) => void updateProfile({ notifications: { ...notifs, [k]: v } });
@@ -138,34 +135,12 @@ export function Settings() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           <Section icon={<User />} title="Personal information">
-            {editingName ? (
-              <div className="flex items-end gap-3 px-5 py-4 sm:px-6">
-                <Input label="Full name" value={name} autoFocus onChange={(e) => setName(e.target.value)} className="min-w-0 flex-1" />
-                <Button variant="ghost" onClick={() => (setName(profile.displayName), setEditingName(false))}>
-                  Cancel
-                </Button>
-                <Button
-                  disabled={!name.trim() || name.trim() === profile.displayName}
-                  onClick={async () => {
-                    await Promise.all([updateProfile({ displayName: name.trim() }), rename(name.trim())]);
-                    setEditingName(false);
-                    toast({ tone: 'success', title: 'Name updated' });
-                  }}
-                >
-                  Save
-                </Button>
-              </div>
-            ) : (
-              <Item label="Full name" hint={displayName}>
-                <Button variant="ghost" size="sm" onClick={() => setEditingName(true)}>
-                  Edit
-                </Button>
-              </Item>
-            )}
+            <Item label="Legal name" hint={displayName} />
             <Item label="Email" hint={user?.email}>
               <Badge tone="success">Verified</Badge>
             </Item>
             <Item label="Account number" hint={<span className="font-mono">{user ? accountNumber(user.uid) : ''}</span>} />
+            <p className="px-5 py-3 text-xs text-muted sm:px-6">To update your legal name, contact Kova support. We may ask you to verify your identity.</p>
           </Section>
 
           <Section icon={<CreditCard />} title="Payments" description="How your plans get paid.">
@@ -320,6 +295,16 @@ function DemoControls({ open, onClose }: { open: boolean; onClose: () => void })
           >
             <Wand2 className="size-4" /> Sample data
           </Button>
+        </div>
+
+        <div className="flex items-center gap-4 rounded-2xl border border-line px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Pencil className="size-4 text-muted" /> Allow editing plans
+            </p>
+            <p className="text-xs text-muted">Shows edit, photo and delete on each plan.</p>
+          </div>
+          <Toggle checked={!!profile.demoEditing} onChange={(v) => void updateProfile({ demoEditing: v })} label="Allow editing plans" />
         </div>
 
         <div>

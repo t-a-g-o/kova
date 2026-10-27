@@ -94,6 +94,8 @@ export interface Profile {
   memberSince: number;
   theme: ThemePref;
   notifications?: NotificationPrefs;
+  /** Demo controls: lets the user edit or delete plans, which a real lender wouldn't allow. */
+  demoEditing?: boolean;
 }
 
 export interface NotificationPrefs {
