@@ -1,10 +1,8 @@
 import { motion } from 'motion/react';
-import { ArrowRight, CreditCard, Plus, Wand2 } from 'lucide-react';
+import { ArrowRight, CreditCard, Layers } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useUI } from '../components/AppShell';
 import { PlanThumb } from '../components/PlanThumb';
-import { useToast } from '../components/Toast';
 import { TxnRow, TxnSheet } from '../components/Txn';
 import { AnimatedNumber, Badge, Button, Card, Empty, Segmented, Skeleton } from '../components/ui';
 import { planStats, type PlanStats } from '../lib/finance';
@@ -19,13 +17,10 @@ const fade = (i = 0) => ({
 });
 
 export function Home() {
-  const { plans, txns, methods, profile, ready, loadSample } = useData();
-  const { openNewPlan } = useUI();
+  const { plans, txns, methods, profile, ready } = useData();
   const nav = useNavigate();
-  const toast = useToast();
   const now = useNow(1000);
   const [openTxn, setOpenTxn] = useState<Txn | null>(null);
-  const [seeding, setSeeding] = useState(false);
   const [tab, setTab] = useState<'active' | 'paid'>('active');
 
   const rows = useMemo(() => plans.map((p) => ({ plan: p, s: planStats(p, txns, now) })), [plans, txns, now]);
@@ -81,9 +76,6 @@ export function Home() {
           <h1 className="mt-0.5 text-2xl font-semibold tracking-tight lg:text-[28px]">Overview</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={openNewPlan} className="hidden sm:inline-flex">
-            <Plus className="size-4" /> New plan
-          </Button>
           {payable && <Button onClick={() => nav(`/plans/${payable.plan.id}`, { state: { pay: 'next' } })}>Make a payment</Button>}
         </div>
       </motion.div>
@@ -91,27 +83,15 @@ export function Home() {
       {plans.length === 0 ? (
         <Card>
           <Empty
-            icon={<Wand2 />}
-            title="No plans yet"
-            body="Add something you’re paying off, or load a sample account to explore Kova."
+            icon={<Layers />}
+            title="No active plans"
+            body={`You have ${money(profile.spendingPower, true)} in spending power. When you check out with Kova, your payment plans show up here.`}
             action={
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button onClick={openNewPlan}>
-                  <Plus className="size-4" /> Add a plan
+              methods.length === 0 ? (
+                <Button onClick={() => nav('/wallet')}>
+                  <CreditCard className="size-4" /> Add a payment method
                 </Button>
-                <Button
-                  variant="outline"
-                  loading={seeding}
-                  onClick={async () => {
-                    setSeeding(true);
-                    await loadSample();
-                    setSeeding(false);
-                    toast({ tone: 'success', title: 'Sample account loaded' });
-                  }}
-                >
-                  Load sample data
-                </Button>
-              </div>
+              ) : undefined
             }
           />
         </Card>

@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { Layers, Plus, Search } from 'lucide-react';
+import { Layers, Search } from 'lucide-react';
 import { useState } from 'react';
-import { PageHeader, useUI } from '../components/AppShell';
+import { PageHeader } from '../components/AppShell';
 import { PlanCard } from '../components/PlanCard';
-import { Button, Card, Empty, Segmented } from '../components/ui';
+import { Card, Empty, Segmented } from '../components/ui';
 import { planStats } from '../lib/finance';
 import { useData } from '../lib/store';
 import { money } from '../lib/utils';
@@ -12,7 +12,6 @@ type Filter = 'active' | 'paid' | 'all';
 
 export function Plans() {
   const { plans, txns } = useData();
-  const { openNewPlan } = useUI();
   const [filter, setFilter] = useState<Filter>('active');
   const [q, setQ] = useState('');
 
@@ -30,11 +29,6 @@ export function Plans() {
       <PageHeader
         title="Plans"
         subtitle={`${money(owed)} remaining · ${money(paid)} paid to date`}
-        action={
-          <Button onClick={openNewPlan} className="hidden sm:inline-flex">
-            <Plus className="size-4" /> New plan
-          </Button>
-        }
       />
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <Segmented
@@ -63,15 +57,8 @@ export function Plans() {
           <Card key="empty">
             <Empty
               icon={<Layers />}
-              title={q ? 'No matches' : filter === 'paid' ? 'Nothing paid off yet' : 'No plans yet'}
-              body={q ? 'Try a different search.' : filter === 'paid' ? 'When you finish a plan, it’ll live here forever.' : 'Split your next purchase into easy payments.'}
-              action={
-                !q && filter !== 'paid' ? (
-                  <Button onClick={openNewPlan}>
-                    <Plus className="size-4" /> New plan
-                  </Button>
-                ) : undefined
-              }
+              title={q ? 'No matches' : filter === 'paid' ? 'Nothing paid off yet' : 'No active plans'}
+              body={q ? 'Try a different search.' : filter === 'paid' ? 'When you finish a plan, it’ll live here forever.' : 'Plans you start at checkout with Kova will show up here.'}
             />
           </Card>
         )}

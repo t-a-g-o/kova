@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { CreditCard, Home, Layers, Plus, ReceiptText, Settings } from 'lucide-react';
+import { CreditCard, Home, Layers, ReceiptText, Settings } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useOutlet } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
@@ -15,7 +15,7 @@ const NAV = [
   { to: '/plans', label: 'Plans', icon: Layers },
   { to: '/activity', label: 'Activity', icon: ReceiptText },
   { to: '/wallet', label: 'Wallet', icon: CreditCard },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/settings', label: 'Account', icon: Settings },
 ];
 
 const UICtx = createContext<{ openNewPlan: () => void }>({ openNewPlan: () => {} });
@@ -60,7 +60,7 @@ function SettleWatcher() {
   return null;
 }
 
-function Sidebar({ onNew }: { onNew: () => void }) {
+function Sidebar() {
   const { user } = useAuth();
   const { plans, txns, profile } = useData();
   const owed = plans.reduce((s, p) => s + planStats(p, txns).remaining, 0);
@@ -68,13 +68,7 @@ function Sidebar({ onNew }: { onNew: () => void }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-[268px] shrink-0 flex-col border-r border-line bg-surface/60 px-4 py-6 backdrop-blur-xl lg:flex">
       <Logo size={32} className="px-3" />
-      <button
-        onClick={onNew}
-        className="group mt-8 flex h-10 items-center justify-center gap-2 rounded-xl bg-iris-600 text-sm font-semibold text-white shadow-sm transition hover:bg-iris-700 active:scale-[.98]"
-      >
-        <Plus className="size-4" /> New plan
-      </button>
-      <nav className="mt-6 flex flex-col gap-1">
+      <nav className="mt-8 flex flex-col gap-1">
         {NAV.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'} className="relative">
             {({ isActive }) => (
@@ -107,13 +101,13 @@ function Sidebar({ onNew }: { onNew: () => void }) {
   );
 }
 
-function MobileTabs({ onNew }: { onNew: () => void }) {
-  const items = [NAV[0], NAV[1], null, NAV[2], NAV[3]];
+function MobileTabs() {
+  // Settings lives behind the avatar in the top bar.
+  const items = NAV.slice(0, 4);
   return (
     <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/85 backdrop-blur-2xl lg:hidden">
       <div className="mx-auto flex h-[68px] max-w-lg items-center justify-around px-2">
-        {items.map((n) =>
-          n ? (
+        {items.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.to === '/'} className="flex-1">
               {({ isActive }) => (
                 <span className={cn('relative flex flex-col items-center gap-1 py-1 text-[11px] font-semibold transition-colors', isActive ? 'text-ink' : 'text-faint')}>
@@ -125,19 +119,7 @@ function MobileTabs({ onNew }: { onNew: () => void }) {
                 </span>
               )}
             </NavLink>
-          ) : (
-            <div key="new" className="flex flex-1 justify-center">
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={onNew}
-                aria-label="New plan"
-                className="-mt-7 grid size-14 place-items-center rounded-full bg-iris-600 text-white shadow-lg ring-4 ring-bg"
-              >
-                <Plus className="size-6" strokeWidth={2.6} />
-              </motion.button>
-            </div>
-          ),
-        )}
+        ))}
       </div>
     </nav>
   );
@@ -171,7 +153,7 @@ export function AppShell() {
   return (
     <UICtx.Provider value={{ openNewPlan }}>
       <div className="flex min-h-dvh">
-        <Sidebar onNew={openNewPlan} />
+        <Sidebar />
         <div className="min-w-0 flex-1">
           <MobileTop />
           <main className="mx-auto w-full max-w-6xl px-4 pt-4 pb-32 sm:px-6 lg:px-10 lg:pt-10 lg:pb-16">
@@ -188,7 +170,7 @@ export function AppShell() {
             </AnimatePresence>
           </main>
         </div>
-        <MobileTabs onNew={openNewPlan} />
+        <MobileTabs />
       </div>
       <NewPlanSheet open={newOpen} onClose={() => setNewOpen(false)} />
       <SettleWatcher />

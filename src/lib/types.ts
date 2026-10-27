@@ -93,6 +93,16 @@ export interface Profile {
   spendingPower: number;
   memberSince: number;
   theme: ThemePref;
+  notifications?: NotificationPrefs;
+}
+
+export interface NotificationPrefs {
+  /** Email a reminder a few days before each due date. */
+  reminders: boolean;
+  /** Email a receipt when a payment posts. */
+  receipts: boolean;
+  /** Offers and product news. */
+  offers: boolean;
 }
 
 export interface AppUser {
