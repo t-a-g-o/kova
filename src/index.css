@@ -65,13 +65,35 @@ body,
   min-height: 100%;
 }
 
+/* Behave like an app, not a web page: no sideways panning, double-tap zoom, or rubber-band scroll. */
+html,
+body {
+  overflow-x: clip;
+  max-width: 100%;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+#root {
+  overflow-x: clip;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+select,
+button,
+a {
+  touch-action: manipulation;
 }
 
 .font-display {
