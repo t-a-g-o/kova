@@ -30,6 +30,7 @@ export const isStandalone = () =>
 const ua = navigator.userAgent;
 const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isAndroid = /android/i.test(ua);
+const isPhone = isIOS || isAndroid;
 
 function snoozed() {
   try {
@@ -39,7 +40,7 @@ function snoozed() {
   }
 }
 
-/** Nudges browser visitors to add Kova to their home screen, where it runs full screen like a native app. */
+/** Nudges phone browser visitors to add Kova to their home screen, where it runs full screen like a native app. */
 export function InstallPrompt() {
   const [open, setOpen] = useState(false);
   const [canPrompt, setCanPrompt] = useState(!!deferred);
@@ -47,7 +48,7 @@ export function InstallPrompt() {
   useEffect(() => {
     const sync = () => setCanPrompt(!!deferred);
     listeners.add(sync);
-    if (isStandalone() || snoozed()) return () => void listeners.delete(sync);
+    if (!isPhone || isStandalone() || snoozed()) return () => void listeners.delete(sync);
     const t = setTimeout(() => setOpen(true), 1200);
     return () => {
       clearTimeout(t);
@@ -73,19 +74,15 @@ export function InstallPrompt() {
     if (outcome === 'accepted') setOpen(false);
   };
 
-  const mobile = isIOS || isAndroid;
-
   return (
     <Sheet open={open} onClose={dismiss} hideClose>
       <div className="flex flex-col items-center pt-2 text-center">
         <div className="rounded-[22px] shadow-[0_12px_40px_-8px_rgba(109,91,255,0.7)]">
           <LogoMark size={72} />
         </div>
-        <h2 className="mt-5 font-display text-2xl font-bold">{mobile ? 'Add Kova to your Home Screen' : 'Kova is made for your phone'}</h2>
+        <h2 className="mt-5 font-display text-2xl font-bold">Add Kova to your Home Screen</h2>
         <p className="mt-2 max-w-xs text-sm text-muted">
-          {mobile
-            ? 'It opens full screen with no browser bars, right from your home screen, just like a real banking app.'
-            : `Open ${location.host} on your phone and add it to your home screen for the full experience.`}
+          It opens full screen with no browser bars, right from your home screen, just like a real banking app.
         </p>
       </div>
 
@@ -122,7 +119,7 @@ export function InstallPrompt() {
       <div className="mt-6 space-y-2 pb-2">
         {canPrompt && (
           <Button size="lg" block onClick={install}>
-            {mobile ? 'Add to Home Screen' : 'Install Kova'}
+            Add to Home Screen
           </Button>
         )}
         <Button size="lg" block variant={canPrompt ? 'ghost' : 'secondary'} onClick={dismiss}>

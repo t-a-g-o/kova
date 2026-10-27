@@ -297,7 +297,7 @@ export function SignUp() {
             <AnimatePresence>{agree && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Check className="size-3.5" strokeWidth={3} /></motion.span>}</AnimatePresence>
           </button>
           <span onClick={() => setAgree((a) => !a)}>
-            I agree to Kova’s <span className="font-semibold text-ink">Terms of Service</span> and <span className="font-semibold text-ink">Privacy Policy</span>.
+            I agree to Kova’s <span className="font-semibold text-ink">Terms of Service</span>, which mostly promise that nobody here is taking my money.
           </span>
         </motion.div>
       </motion.form>

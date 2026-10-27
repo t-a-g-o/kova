@@ -22,7 +22,7 @@ import {
   Wand2,
   Zap,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, PageHeader, useUI } from '../components/AppShell';
 import { MethodIcon } from '../components/Logos';
@@ -89,6 +89,7 @@ export function Settings() {
   const toast = useToast();
   const [demoOpen, setDemoOpen] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
 
   const notifs = { ...DEFAULT_NOTIFS, ...profile.notifications };
   const setNotif = (k: keyof NotificationPrefs, v: boolean) => void updateProfile({ notifications: { ...notifs, [k]: v } });
@@ -135,12 +136,15 @@ export function Settings() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           <Section icon={<User />} title="Personal information">
-            <Item label="Legal name" hint={displayName} />
+            <Item label="Name" hint={displayName}>
+              <Button variant="secondary" size="sm" onClick={() => setNameOpen(true)}>
+                <Pencil className="size-3.5" /> Edit
+              </Button>
+            </Item>
             <Item label="Email" hint={user?.email}>
               <Badge tone="success">Verified</Badge>
             </Item>
             <Item label="Account number" hint={<span className="font-mono">{user ? accountNumber(user.uid) : ''}</span>} />
-            <p className="px-5 py-3 text-xs text-muted sm:px-6">To update your legal name, contact Kova support. We may ask you to verify your identity.</p>
           </Section>
 
           <Section icon={<CreditCard />} title="Payments" description="How your plans get paid.">
@@ -236,6 +240,7 @@ export function Settings() {
         </button>
       </div>
 
+      <EditName open={nameOpen} onClose={() => setNameOpen(false)} current={displayName} />
       <DemoControls open={demoOpen} onClose={() => setDemoOpen(false)} />
     </div>
   );
@@ -248,6 +253,46 @@ function exportData(data: object) {
   a.download = `kova-export-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+function EditName({ open, onClose, current }: { open: boolean; onClose: () => void; current: string }) {
+  const { rename } = useAuth();
+  const { updateProfile } = useData();
+  const toast = useToast();
+  const [name, setName] = useState(current);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) setName(current);
+  }, [open, current]);
+
+  const trimmed = name.trim();
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!trimmed || trimmed === current) return;
+    setBusy(true);
+    try {
+      await Promise.all([rename(trimmed), updateProfile({ displayName: trimmed })]);
+      toast({ tone: 'success', title: 'Name updated' });
+      onClose();
+    } catch {
+      toast({ tone: 'error', title: 'Couldn’t update your name', body: 'Please try again in a moment.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Edit name">
+      <form onSubmit={save} className="space-y-5">
+        <Input label="Full name" autoComplete="name" icon={<User />} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoFocus />
+        <Button type="submit" size="lg" block loading={busy} disabled={!trimmed || trimmed === current}>
+          Save
+        </Button>
+      </form>
+    </Sheet>
+  );
 }
 
 /** Sandbox tools that a real lender wouldn't expose: kept out of the way behind a small link. */

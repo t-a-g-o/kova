@@ -592,9 +592,9 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-2 p-4 text-xs leading-relaxed text-muted">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-iris-500" />
                 <span>
-                  I agree to the payment schedule and loan terms above
+                  I agree to admire the payment schedule above without paying a single real cent
                   {autopayOn
-                    ? `, and authorize Kova to charge ${methodLabel(methods.find((m) => m.id === methodId))} automatically on each due date. I can turn AutoPay off at any time.`
+                    ? `, and to let AutoPay pretend to charge ${methodLabel(methods.find((m) => m.id === methodId))} on each due date. It can’t actually take my money, no matter how hard it tries.`
                     : '.'}
                 </span>
               </label>

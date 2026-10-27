@@ -263,7 +263,7 @@ export function PaySheet({
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-2 p-4 text-xs leading-relaxed text-muted">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-iris-500" />
                 <span>
-                  I authorize Kova to {method.kind === 'bank' ? 'debit' : 'charge'} {money(amount)} from {methodLabel(method)} today for order {plan.orderNumber}. Once submitted, this payment can’t be canceled.
+                  I agree that this {money(amount)} is pretend money and {methodLabel(method)} will be left completely alone. No real dollars were harmed in the making of order {plan.orderNumber}.
                 </span>
               </label>
 

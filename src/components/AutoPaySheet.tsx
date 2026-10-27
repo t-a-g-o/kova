@@ -136,8 +136,8 @@ export function AutoPaySheet({ plan, open, onClose }: { plan: Plan; open: boolea
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-2 p-4 text-xs leading-relaxed text-muted">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-iris-500" />
                 <span>
-                  I authorize Kova to {method.kind === 'bank' ? 'debit' : 'charge'} {methodLabel(method)} for each scheduled payment on {plan.name} on its due date until the plan is paid off or I
-                  turn AutoPay off. I can cancel at any time before a payment is processed.
+                  I agree that AutoPay will pretend to pay {plan.name} from {methodLabel(method)} on every due date, and that my actual money stays exactly where it is. I can turn this
+                  imaginary robot off any time.
                 </span>
               </label>
               <Button
