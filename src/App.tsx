@@ -5,10 +5,10 @@ import { AppShell } from './components/AppShell';
 import { InstallPrompt } from './components/InstallPrompt';
 import { LogoMark } from './components/Logo';
 import { ToastProvider } from './components/Toast';
-import { AuthProvider, useAuth } from './lib/auth';
+import { AuthProvider, isReturning, useAuth } from './lib/auth';
 import { DataProvider } from './lib/store';
 import { Activity } from './pages/Activity';
-import { Forgot, SignIn, SignUp } from './pages/auth/AuthPages';
+import { Forgot, SignIn, SignUp, Welcome } from './pages/auth/AuthPages';
 import { Home } from './pages/Home';
 import { PlanDetail } from './pages/PlanDetail';
 import { Plans } from './pages/Plans';
@@ -28,7 +28,7 @@ function Splash() {
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const loc = useLocation();
-  if (!user) return <Navigate to="/signin" replace state={{ from: loc.pathname }} />;
+  if (!user) return <Navigate to={isReturning() ? '/signin' : '/welcome'} replace state={{ from: loc.pathname }} />;
   return <>{children}</>;
 }
 
@@ -41,7 +41,7 @@ function PublicOnly({ children }: { children: ReactNode }) {
 function AppRoutes() {
   const { loading } = useAuth();
   const loc = useLocation();
-  const authKey = ['/signin', '/signup', '/forgot'].includes(loc.pathname) ? loc.pathname : 'app';
+  const authKey = ['/welcome', '/signin', '/signup', '/forgot'].includes(loc.pathname) ? loc.pathname : 'app';
   return (
     <>
       <AnimatePresence>{loading && <Splash key="splash" />}</AnimatePresence>
@@ -49,6 +49,7 @@ function AppRoutes() {
         <AnimatePresence mode="wait">
           <motion.div key={authKey} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
             <Routes location={loc}>
+              <Route path="/welcome" element={<PublicOnly><Welcome /></PublicOnly>} />
               <Route path="/signin" element={<PublicOnly><SignIn /></PublicOnly>} />
               <Route path="/signup" element={<PublicOnly><SignUp /></PublicOnly>} />
               <Route path="/forgot" element={<PublicOnly><Forgot /></PublicOnly>} />

@@ -25,7 +25,7 @@ export function Wallet() {
     <div>
       <PageHeader title="Wallet" subtitle="Where your payments come from." />
 
-      <section className="mb-8">
+      <section className="mb-8" data-tour="wallet-banks">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold">Bank accounts</h2>
           <Button size="sm" variant="secondary" onClick={() => setAddBank(true)}>

@@ -131,6 +131,19 @@ const remote = {
 
 const backend = firebaseEnabled ? remote : local;
 
+/* ---------- Returning visitors ---------- */
+
+const RETURNING_KEY = 'kova:returning';
+
+/** Whether anyone has signed in on this device before, so first-timers land on the welcome screen instead. */
+export function isReturning() {
+  try {
+    return localStorage.getItem(RETURNING_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /* ---------- Context ---------- */
 
 interface AuthCtx {
@@ -165,6 +178,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localListeners.delete(l);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem(RETURNING_KEY, '1');
+    } catch {
+      /* private mode */
+    }
+  }, [user]);
 
   const rename = async (name: string) => {
     await backend.rename(name);

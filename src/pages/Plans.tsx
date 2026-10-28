@@ -48,13 +48,13 @@ export function Plans() {
       </div>
       <AnimatePresence mode="popLayout">
         {shown.length ? (
-          <motion.div key={filter} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <motion.div key={filter} data-tour="plans-grid" className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {shown.map((p, i) => (
               <PlanCard key={p.id} plan={p} txns={txns} index={i} />
             ))}
           </motion.div>
         ) : (
-          <Card key="empty">
+          <Card key="empty" data-tour="plans-grid">
             <Empty
               icon={<Layers />}
               title={q ? 'No matches' : filter === 'paid' ? 'Nothing paid off yet' : 'No active plans'}

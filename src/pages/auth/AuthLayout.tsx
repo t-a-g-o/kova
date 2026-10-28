@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { CheckCircle2, ChevronLeft, ShieldCheck, Sparkles } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, Gift, ShieldCheck } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { firebaseEnabled } from '../../lib/firebase';
@@ -94,7 +94,7 @@ function DesktopAuth({ children, footer, back, title }: LayoutProps) {
             Own it now. <span className="text-gradient">Pay it your way.</span>
           </motion.h1>
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mt-5 max-w-sm text-lg text-white/60">
-            Split big purchases into simple payments. No surprises, no hidden fees.
+            Kova turns any dream purchase into a payment plan you can track, pay down and show off. It’s all simulated, so no real money ever moves.
           </motion.p>
           <div className="mt-16">
             <ShowcaseCard />
@@ -102,10 +102,10 @@ function DesktopAuth({ children, footer, back, title }: LayoutProps) {
         </div>
         <div className="relative flex gap-6 text-sm text-white/50">
           <span className="flex items-center gap-2">
-            <ShieldCheck className="size-4" /> 256-bit encryption
+            <ShieldCheck className="size-4" /> No real money, ever
           </span>
           <span className="flex items-center gap-2">
-            <Sparkles className="size-4" /> No hidden fees
+            <Gift className="size-4" /> Free, no card needed
           </span>
         </div>
       </aside>

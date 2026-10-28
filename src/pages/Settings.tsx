@@ -14,6 +14,7 @@ import {
   Moon,
   Palette,
   Pencil,
+  Play,
   Plus,
   RotateCcw,
   ShieldCheck,
@@ -27,6 +28,7 @@ import { Link } from 'react-router-dom';
 import { Avatar, PageHeader, useUI } from '../components/AppShell';
 import { MethodIcon } from '../components/Logos';
 import { useToast } from '../components/Toast';
+import { useTour } from '../components/Tour';
 import { Badge, Button, Card, Input, Segmented, Sheet, Toggle } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import { planStats } from '../lib/finance';
@@ -87,6 +89,7 @@ export function Settings() {
   const { user, signOut, reset } = useAuth();
   const { profile, updateProfile, plans, txns, methods, defaultMethod } = useData();
   const toast = useToast();
+  const tour = useTour();
   const [demoOpen, setDemoOpen] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
@@ -235,13 +238,22 @@ export function Settings() {
 
       <div className="mt-10 flex flex-col items-center gap-3 border-t border-line pt-6 text-center">
         <p className="text-xs text-faint">Kova Financial · Version 1.0</p>
-        <button onClick={() => setDemoOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-faint transition hover:bg-surface-2 hover:text-muted">
-          <FlaskConical className="size-3.5" /> Demo controls
-        </button>
+        <div className="flex flex-wrap justify-center gap-1">
+          <button onClick={tour.start} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-faint transition hover:bg-surface-2 hover:text-muted">
+            <Play className="size-3.5" /> Replay the tour
+          </button>
+          <button
+            onClick={() => setDemoOpen(true)}
+            data-tour="demo-link"
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-faint transition hover:bg-surface-2 hover:text-muted"
+          >
+            <FlaskConical className="size-3.5" /> Demo controls
+          </button>
+        </div>
       </div>
 
       <EditName open={nameOpen} onClose={() => setNameOpen(false)} current={displayName} />
-      <DemoControls open={demoOpen} onClose={() => setDemoOpen(false)} />
+      <DemoControls open={demoOpen || tour.demoOpen} onClose={() => setDemoOpen(false)} />
     </div>
   );
 }
@@ -318,7 +330,7 @@ function DemoControls({ open, onClose }: { open: boolean; onClose: () => void })
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2" data-tour="demo-add">
           <Button
             variant="secondary"
             onClick={() => {
@@ -342,7 +354,7 @@ function DemoControls({ open, onClose }: { open: boolean; onClose: () => void })
           </Button>
         </div>
 
-        <div className="flex items-center gap-4 rounded-2xl border border-line px-4 py-3">
+        <div className="flex items-center gap-4 rounded-2xl border border-line px-4 py-3" data-tour="demo-edit">
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <Pencil className="size-4 text-muted" /> Allow editing plans
@@ -352,6 +364,7 @@ function DemoControls({ open, onClose }: { open: boolean; onClose: () => void })
           <Toggle checked={!!profile.demoEditing} onChange={(v) => void updateProfile({ demoEditing: v })} label="Allow editing plans" />
         </div>
 
+        <div data-tour="demo-tuning" className="space-y-6">
         <div>
           <p className="mb-1 flex items-center gap-2 text-sm font-semibold">
             <Clock className="size-4 text-muted" /> Payment processing time
@@ -397,6 +410,7 @@ function DemoControls({ open, onClose }: { open: boolean; onClose: () => void })
               Save
             </Button>
           </div>
+        </div>
         </div>
 
         <div className="border-t border-line pt-5">

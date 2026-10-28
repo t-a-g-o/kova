@@ -1,6 +1,9 @@
 import { EllipsisVertical, Maximize2, PlusSquare, Share, Smartphone, Zap } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { useAuth } from '../lib/auth';
+import { useData } from '../lib/store';
 import { LogoMark } from './Logo';
+import { needsTour } from './Tour';
 import { Button, Sheet } from './ui';
 
 interface InstallEvent extends Event {
@@ -44,17 +47,21 @@ function snoozed() {
 export function InstallPrompt() {
   const [open, setOpen] = useState(false);
   const [canPrompt, setCanPrompt] = useState(!!deferred);
+  const { user } = useAuth();
+  const { ready, profile } = useData();
+  // Let newcomers sign up and take the welcome tour first; ask once they're settled in.
+  const touring = !user || !ready || needsTour(profile);
 
   useEffect(() => {
     const sync = () => setCanPrompt(!!deferred);
     listeners.add(sync);
-    if (!isPhone || isStandalone() || snoozed()) return () => void listeners.delete(sync);
+    if (!isPhone || isStandalone() || snoozed() || touring) return () => void listeners.delete(sync);
     const t = setTimeout(() => setOpen(true), 1200);
     return () => {
       clearTimeout(t);
       listeners.delete(sync);
     };
-  }, []);
+  }, [touring]);
 
   const dismiss = () => {
     try {

@@ -74,7 +74,7 @@ export function PlanDetail() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
-          <Card className="relative overflow-hidden p-6 sm:p-8">
+          <Card className="relative overflow-hidden p-6 sm:p-8" data-tour="plan-hero">
             {paid && <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-mint-400/15 blur-[80px]" />}
             <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
               <div className="relative w-fit">
@@ -140,7 +140,7 @@ export function PlanDetail() {
             )}
 
             {!paid && !s.pendingUntil && (
-              <div className="relative mt-7 grid gap-3 sm:grid-cols-3">
+              <div className="relative mt-7 grid gap-3 sm:grid-cols-3" data-tour="plan-pay">
                 <Button size="lg" onClick={() => setMode('next')} className="sm:col-span-1">
                   Pay {money(s.nextDue?.amount ?? s.remaining)}
                 </Button>
@@ -154,7 +154,7 @@ export function PlanDetail() {
             )}
           </Card>
 
-          <Card className="p-5 sm:p-6">
+          <Card className="p-5 sm:p-6" data-tour="plan-schedule">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-lg font-bold">Payment schedule</h2>
               <span className="text-sm text-muted">
@@ -197,7 +197,7 @@ export function PlanDetail() {
         </div>
 
         <div className="space-y-6">
-          <Card className="p-5">
+          <Card className="p-5" data-tour="plan-details">
             <div className="mb-1 flex items-center justify-between">
               <h2 className="font-display font-bold">Details</h2>
               {canEdit && (
@@ -218,7 +218,7 @@ export function PlanDetail() {
           </Card>
 
           {!paid && (
-            <Card className="space-y-4 p-5">
+            <Card className="space-y-4 p-5" data-tour="plan-autopay">
               <div className="flex items-center gap-3">
                 <span className="grid size-9 place-items-center rounded-xl bg-iris-500/10 text-iris-500">
                   <Zap className="size-4" />

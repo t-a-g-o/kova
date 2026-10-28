@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, Lock, Mail, MailCheck, User } from 'lucide-react';
+import { ArrowRight, Check, Gem, Lock, Mail, MailCheck, SplitSquareHorizontal, Trophy, User } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authMessage, useAuth } from '../../lib/auth';
 import { cn } from '../../lib/utils';
 import { LogoMark } from '../../components/Logo';
-import { Button, Input } from '../../components/ui';
+import { LogoTile } from '../../components/Logos';
+import { Button, Input, ProgressRing } from '../../components/ui';
 import { AuthLayout, GoogleIcon, authItem, authStagger } from './AuthLayout';
 
 const emailOk = (e: string) => /^\S+@\S+\.\S+$/.test(e);
@@ -53,6 +54,102 @@ function Hero({ title, sub, icon }: { title: string; sub: string; icon?: boolean
         {sub}
       </motion.p>
     </>
+  );
+}
+
+const SHOWCASE = [
+  { domain: 'hermes.com', name: 'Birkin 30', brand: 'Hermès', progress: 0.5, note: '2 of 4 paid', rotate: -7, x: -54, y: 18 },
+  { domain: 'mercedes-benz.com', name: 'G 550', brand: 'Mercedes-Benz', progress: 0.2, note: '$2,890/mo', rotate: 6, x: 54, y: 18 },
+  { domain: 'rolex.com', name: 'Submariner Date', brand: 'Rolex', progress: 0.75, note: '18 of 24 paid', rotate: 0, x: 0, y: 0 },
+];
+
+/** A little stack of make-believe purchases so first-timers get the idea before reading a word. */
+function WelcomeShowcase() {
+  return (
+    <div className="relative mx-auto mt-4 mb-10 h-[150px] w-full max-w-[300px]">
+      {SHOWCASE.map((c, i) => (
+        <motion.div
+          key={c.name}
+          initial={{ opacity: 0, y: 40, rotate: 0, x: 0 }}
+          animate={{ opacity: 1, y: c.y, rotate: c.rotate, x: c.x }}
+          transition={{ delay: 0.15 + i * 0.12, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute inset-x-6 top-0 rounded-[22px] border border-line bg-surface/90 p-4 shadow-xl backdrop-blur-xl"
+        >
+          <div className="flex items-center gap-3">
+            <LogoTile domain={c.domain} name={c.brand} size={42} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{c.name}</p>
+              <p className="truncate text-xs text-muted">{c.note}</p>
+            </div>
+            <ProgressRing value={c.progress} size={40} stroke={5}>
+              <span className="text-[10px] font-bold">{Math.round(c.progress * 100)}%</span>
+            </ProgressRing>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+const HOW = [
+  { icon: Gem, title: 'Pick anything', body: 'A watch, a bag, a car. Add any purchase you want.' },
+  { icon: SplitSquareHorizontal, title: 'Split it up', body: 'Pay in 4, or monthly for up to 4 years.' },
+  { icon: Trophy, title: 'Pay it off', body: 'Track every payment and celebrate when it’s yours.' },
+];
+
+/** First stop for anyone who has never signed in on this device. */
+export function Welcome() {
+  return (
+    <AuthLayout
+      footer={
+        <>
+          <Link to="/signup" className="block">
+            <Button size="lg" block>
+              Create my free account <ArrowRight className="size-4" />
+            </Button>
+          </Link>
+          <Link to="/signin" className="block">
+            <Button variant="outline" size="lg" block>
+              I already have an account
+            </Button>
+          </Link>
+        </>
+      }
+    >
+      <motion.div variants={authStagger} initial="hidden" animate="show">
+        <motion.div variants={authItem} className="lg:hidden">
+          <WelcomeShowcase />
+        </motion.div>
+        <motion.p variants={authItem} className="text-sm font-semibold text-iris-500">
+          New to Kova? Here’s the deal.
+        </motion.p>
+        <motion.h1 variants={authItem} className="mt-1 font-display text-[30px] leading-tight font-extrabold">
+          Buy the dream. <span className="text-gradient">Pay it off for fun.</span>
+        </motion.h1>
+        <motion.p variants={authItem} className="mt-2 mb-7 text-[15px] text-muted">
+          Kova is a buy now, pay later playground. It looks and feels like the real thing, but no real money ever moves.
+        </motion.p>
+        <div className="space-y-3">
+          {HOW.map((h, i) => (
+            <motion.div key={h.title} variants={authItem} className="flex items-start gap-3.5 rounded-2xl border border-line bg-surface/60 px-4 py-3.5">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-iris-500/12 text-iris-500">
+                <h.icon className="size-[18px]" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  <span className="mr-1.5 text-faint">{i + 1}.</span>
+                  {h.title}
+                </p>
+                <p className="text-[13px] text-muted">{h.body}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+        <motion.p variants={authItem} className="mt-5 text-center text-xs text-faint">
+          Free to use. No card, no credit check. Takes about 30 seconds.
+        </motion.p>
+      </motion.div>
+    </AuthLayout>
   );
 }
 
@@ -113,6 +210,7 @@ export function SignIn() {
 
   return (
     <AuthLayout
+      back="/welcome"
       footer={
         <>
           <Button type="submit" form="signin" size="lg" block loading={loading}>
@@ -129,7 +227,7 @@ export function SignIn() {
       }
     >
       <motion.form id="signin" variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
-        <Hero icon title="Welcome back" sub="Sign in to manage your payments." />
+        <Hero icon title="Welcome back" sub="Sign in to pick up where you left off." />
         <motion.div variants={authItem}>
           <FormError msg={err} />
         </motion.div>
@@ -213,7 +311,7 @@ export function SignUp() {
 
   return (
     <AuthLayout
-      back="/signin"
+      back="/welcome"
       footer={
         <>
           <Button type="submit" form="signup" size="lg" block loading={loading}>
@@ -221,11 +319,17 @@ export function SignUp() {
           </Button>
           <Divider />
           <GoogleButton />
+          <p className="pt-1 text-center text-sm text-muted">
+            Already have an account?{' '}
+            <Link to="/signin" className="font-semibold text-iris-500">
+              Sign in
+            </Link>
+          </p>
         </>
       }
     >
       <motion.form id="signup" variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
-        <Hero title="Create your account" sub="It takes less than a minute. Checking eligibility won’t affect your credit score." />
+        <Hero title="Create your account" sub="Free, about 30 seconds, and no real money ever moves. Right after this we’ll show you around." />
         <motion.div variants={authItem}>
           <FormError msg={err} />
         </motion.div>

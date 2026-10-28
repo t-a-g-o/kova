@@ -81,7 +81,7 @@ export function Home() {
       </motion.div>
 
       {plans.length === 0 ? (
-        <Card>
+        <Card data-tour="home-empty">
           <Empty
             icon={<Layers />}
             title="No active plans"
@@ -114,7 +114,7 @@ export function Home() {
             </motion.div>
           )}
           {/* Summary */}
-          <motion.div {...fade(1)}>
+          <motion.div {...fade(1)} data-tour="summary">
             <Card className="grid grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-line">
               <Metric label="Total balance" className="col-span-2 border-b border-line lg:col-span-1 lg:border-b-0">
                 <span className="text-[32px] leading-none font-semibold tracking-tight">
@@ -154,7 +154,7 @@ export function Home() {
           </motion.div>
 
           {next && (
-            <motion.div {...fade(2)}>
+            <motion.div {...fade(2)} data-tour="next-payment">
               <Card className="flex flex-wrap items-center gap-4 px-5 py-4">
                 <PlanThumb plan={next.plan} size={44} />
                 <div className="min-w-0 flex-1">

@@ -8,6 +8,7 @@ import { useData, useNow } from '../lib/store';
 import { cn, initials, money } from '../lib/utils';
 import { Logo } from './Logo';
 import { NewPlanSheet } from './NewPlanSheet';
+import { TourProvider } from './Tour';
 import { useToast } from './Toast';
 
 const NAV = [
@@ -70,7 +71,7 @@ function Sidebar() {
       <Logo size={32} className="px-3" />
       <nav className="mt-8 flex flex-col gap-1">
         {NAV.map(({ to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} end={to === '/'} className="relative">
+          <NavLink key={to} to={to} end={to === '/'} className="relative" data-tour={`nav-${label.toLowerCase()}`}>
             {({ isActive }) => (
               <span className={cn('relative flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] font-semibold transition-colors', isActive ? 'text-ink' : 'text-muted hover:text-ink')}>
                 {isActive && <motion.span layoutId="side-active" className="absolute inset-0 rounded-xl bg-surface-2" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
@@ -108,7 +109,7 @@ function MobileTabs() {
     <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/85 backdrop-blur-2xl lg:hidden">
       <div className="mx-auto flex h-[68px] max-w-lg items-center justify-around px-2">
         {items.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'} className="flex-1">
+            <NavLink key={n.to} to={n.to} end={n.to === '/'} className="flex-1" data-tour={`nav-${n.label.toLowerCase()}`}>
               {({ isActive }) => (
                 <span className={cn('relative flex flex-col items-center gap-1 py-1 text-[11px] font-semibold transition-colors', isActive ? 'text-ink' : 'text-faint')}>
                   <motion.span animate={{ y: isActive ? -1 : 0, scale: isActive ? 1.08 : 1 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }}>
@@ -132,7 +133,7 @@ function MobileTop() {
     <header className="pt-safe sticky top-0 z-30 border-b border-transparent bg-bg/80 backdrop-blur-xl lg:hidden">
       <div className="flex h-14 items-center justify-between px-5">
         <Logo size={26} />
-        <NavLink to="/settings" aria-label="Settings">
+        <NavLink to="/settings" aria-label="Settings" data-tour="nav-account">
           <Avatar name={profile.displayName || user?.displayName || ''} size={34} />
         </NavLink>
       </div>
@@ -152,6 +153,7 @@ export function AppShell() {
 
   return (
     <UICtx.Provider value={{ openNewPlan }}>
+      <TourProvider onAddPlan={openNewPlan}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="min-w-0 flex-1">
@@ -174,6 +176,7 @@ export function AppShell() {
       </div>
       <NewPlanSheet open={newOpen} onClose={() => setNewOpen(false)} />
       <SettleWatcher />
+      </TourProvider>
     </UICtx.Provider>
   );
 }

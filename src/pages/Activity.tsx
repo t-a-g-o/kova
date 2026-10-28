@@ -100,7 +100,7 @@ export function Activity() {
         </div>
       </div>
 
-      <Card className="p-2 sm:p-4">
+      <Card className="p-2 sm:p-4" data-tour="activity-list">
         {groups.length ? (
           groups.map(([day, list]) => (
             <div key={day} className="mb-2 last:mb-0">
