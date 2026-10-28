@@ -14,13 +14,13 @@ import {
   Moon,
   Palette,
   Pencil,
+  PartyPopper,
   Play,
   Plus,
   RotateCcw,
   ShieldCheck,
   Sparkles,
   User,
-  Wand2,
   Zap,
 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
@@ -309,7 +309,7 @@ function EditName({ open, onClose, current }: { open: boolean; onClose: () => vo
 
 /** Sandbox tools that a real lender wouldn't expose: kept out of the way behind a small link. */
 function DemoControls({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { profile, updateProfile, plans, txns, loadSample, resetData } = useData();
+  const { profile, updateProfile, plans, txns, resetData } = useData();
   const { openNewPlan } = useUI();
   const toast = useToast();
   const [power, setPower] = useState(String(profile.spendingPower));
@@ -330,27 +330,16 @@ function DemoControls({ open, onClose }: { open: boolean; onClose: () => void })
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2" data-tour="demo-add">
+        <div data-tour="demo-add">
           <Button
             variant="secondary"
+            block
             onClick={() => {
               onClose();
               setTimeout(openNewPlan, 200);
             }}
           >
             <Plus className="size-4" /> Add a plan
-          </Button>
-          <Button
-            variant="secondary"
-            loading={busy === 'sample'}
-            onClick={async () => {
-              setBusy('sample');
-              await loadSample();
-              setBusy('');
-              toast({ tone: 'success', title: 'Sample data added' });
-            }}
-          >
-            <Wand2 className="size-4" /> Sample data
           </Button>
         </div>
 
@@ -362,6 +351,16 @@ function DemoControls({ open, onClose }: { open: boolean; onClose: () => void })
             <p className="text-xs text-muted">Shows edit, photo and delete on each plan.</p>
           </div>
           <Toggle checked={!!profile.demoEditing} onChange={(v) => void updateProfile({ demoEditing: v })} label="Allow editing plans" />
+        </div>
+
+        <div className="flex items-center gap-4 rounded-2xl border border-line px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <PartyPopper className="size-4 text-muted" /> Playful text
+            </p>
+            <p className="text-xs text-muted">Jokey wording in agreements, the welcome screens and the tour. Off reads like a real lender.</p>
+          </div>
+          <Toggle checked={!!profile.playful} onChange={(v) => void updateProfile({ playful: v })} label="Playful text" />
         </div>
 
         <div data-tour="demo-tuning" className="space-y-6">

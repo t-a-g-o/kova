@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { brandById, brandForName, type Brand } from '../lib/brands';
 import { brandsMatching, parseProductLink, searchCatalog, type CatalogHit } from '../lib/catalog';
 import { buildSchedule, quote } from '../lib/finance';
-import { methodIssue, methodLabel, useData } from '../lib/store';
+import { methodIssue, methodLabel, useData, usePlayful } from '../lib/store';
 import type { Category, Plan, PlanType } from '../lib/types';
 import { cn, fmtDate, fmtShort, money, round2 } from '../lib/utils';
 import { SuccessCheck } from './Celebration';
@@ -100,6 +100,7 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [autopay, setAutopay] = useState(true);
   const [methodId, setMethodId] = useState<string | undefined>();
   const [agreed, setAgreed] = useState(false);
+  const playful = usePlayful();
   const [failed, setFailed] = useState<string | null>(null);
   const [created, setCreated] = useState<Plan | null>(null);
 
@@ -591,12 +592,21 @@ export function NewPlanSheet({ open, onClose }: { open: boolean; onClose: () => 
               </div>
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-2 p-4 text-xs leading-relaxed text-muted">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-iris-500" />
-                <span>
-                  I agree to admire the payment schedule above without paying a single real cent
-                  {autopayOn
-                    ? `, and to let AutoPay pretend to charge ${methodLabel(methods.find((m) => m.id === methodId))} on each due date. It can’t actually take my money, no matter how hard it tries.`
-                    : '.'}
-                </span>
+                {playful ? (
+                  <span>
+                    I agree to admire the payment schedule above without paying a single real cent
+                    {autopayOn
+                      ? `, and to let AutoPay pretend to charge ${methodLabel(methods.find((m) => m.id === methodId))} on each due date. It can’t actually take my money, no matter how hard it tries.`
+                      : '.'}
+                  </span>
+                ) : (
+                  <span>
+                    I agree to the payment schedule above and the Kova Loan Agreement, including the Truth in Lending disclosures
+                    {autopayOn
+                      ? `. I authorize Kova to automatically charge ${methodLabel(methods.find((m) => m.id === methodId))} for each installment on its due date until this plan is paid in full or I turn off AutoPay.`
+                      : '. I understand that payments not made by their due date may limit my ability to use Kova.'}
+                  </span>
+                )}
               </label>
               {failed && (
                 <p role="alert" className="rounded-xl bg-rose-500/10 px-3 py-2.5 text-sm text-rose-500">

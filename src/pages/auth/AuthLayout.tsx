@@ -1,8 +1,9 @@
 import { motion } from 'motion/react';
-import { CheckCircle2, ChevronLeft, Gift, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, Gift, ShieldCheck, Sparkles } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { firebaseEnabled } from '../../lib/firebase';
+import { usePlayful } from '../../lib/store';
 import { Logo } from '../../components/Logo';
 import { LogoTile } from '../../components/Logos';
 import { ProgressRing } from '../../components/ui';
@@ -79,6 +80,7 @@ type LayoutProps = { children: ReactNode; footer?: ReactNode; back?: string; tit
 
 /** Desktop: brand panel on the left, the form in a centered column on the right with its actions inline. */
 function DesktopAuth({ children, footer, back, title }: LayoutProps) {
+  const playful = usePlayful();
   return (
     <div className="grid min-h-dvh grid-cols-[1.05fr_1fr]">
       <aside className="noise relative flex flex-col overflow-hidden bg-[#0a0816] p-12 text-white">
@@ -94,19 +96,34 @@ function DesktopAuth({ children, footer, back, title }: LayoutProps) {
             Own it now. <span className="text-gradient">Pay it your way.</span>
           </motion.h1>
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mt-5 max-w-sm text-lg text-white/60">
-            Kova turns any dream purchase into a payment plan you can track, pay down and show off. It’s all simulated, so no real money ever moves.
+            {playful
+              ? 'Kova turns any dream purchase into a payment plan you can track, pay down and show off. It’s all simulated, so no real money ever moves.'
+              : 'Split big purchases into simple payments. No surprises, no hidden fees.'}
           </motion.p>
           <div className="mt-16">
             <ShowcaseCard />
           </div>
         </div>
         <div className="relative flex gap-6 text-sm text-white/50">
-          <span className="flex items-center gap-2">
-            <ShieldCheck className="size-4" /> No real money, ever
-          </span>
-          <span className="flex items-center gap-2">
-            <Gift className="size-4" /> Free, no card needed
-          </span>
+          {playful ? (
+            <>
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="size-4" /> No real money, ever
+              </span>
+              <span className="flex items-center gap-2">
+                <Gift className="size-4" /> Free, no card needed
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="size-4" /> 256-bit encryption
+              </span>
+              <span className="flex items-center gap-2">
+                <Sparkles className="size-4" /> No hidden fees
+              </span>
+            </>
+          )}
         </div>
       </aside>
       <main className="relative flex min-h-dvh flex-col px-8 py-6">

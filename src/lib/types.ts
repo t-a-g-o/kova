@@ -96,6 +96,8 @@ export interface Profile {
   notifications?: NotificationPrefs;
   /** Demo controls: lets the user edit or delete plans, which a real lender wouldn't allow. */
   demoEditing?: boolean;
+  /** Jokey copy in consent text, the welcome screens and the tour. Off reads like a real lender. */
+  playful?: boolean;
   /** When the welcome tour was finished or skipped. */
   touredAt?: number;
 }

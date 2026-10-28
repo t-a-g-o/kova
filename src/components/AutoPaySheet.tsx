@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { planStats } from '../lib/finance';
-import { methodIssue, methodLabel, useData, useNow } from '../lib/store';
+import { methodIssue, methodLabel, useData, useNow, usePlayful } from '../lib/store';
 import type { Plan } from '../lib/types';
 import { fmtDate, money } from '../lib/utils';
 import { MethodIcon } from './Logos';
@@ -27,6 +27,7 @@ export function AutoPaySheet({ plan, open, onClose }: { plan: Plan; open: boolea
   const [step, setStep] = useState<Step>('manage');
   const [methodId, setMethodId] = useState<string | undefined>();
   const [agreed, setAgreed] = useState(false);
+  const playful = usePlayful();
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -135,10 +136,17 @@ export function AutoPaySheet({ plan, open, onClose }: { plan: Plan; open: boolea
               </div>
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-2 p-4 text-xs leading-relaxed text-muted">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-iris-500" />
-                <span>
-                  I agree that AutoPay will pretend to pay {plan.name} from {methodLabel(method)} on every due date, and that my actual money stays exactly where it is. I can turn this
-                  imaginary robot off any time.
-                </span>
+                {playful ? (
+                  <span>
+                    I agree that AutoPay will pretend to pay {plan.name} from {methodLabel(method)} on every due date, and that my actual money stays exactly where it is. I can turn this
+                    imaginary robot off any time.
+                  </span>
+                ) : (
+                  <span>
+                    I authorize Kova to automatically charge {methodLabel(method)} for each scheduled payment on {plan.name} on its due date, until the plan is paid in full or I turn off
+                    AutoPay.
+                  </span>
+                )}
               </label>
               <Button
                 size="lg"

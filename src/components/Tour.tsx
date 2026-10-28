@@ -23,7 +23,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '../lib/hooks';
-import { useData } from '../lib/store';
+import { useData, usePlayful } from '../lib/store';
 import type { Plan, Profile } from '../lib/types';
 import { DAY, cn } from '../lib/utils';
 import { confettiBurst } from './Celebration';
@@ -33,7 +33,7 @@ import { Button, Toggle } from './ui';
 /** Brand-new accounts get the tour once; older accounts and anyone who finished or skipped it don't. */
 export const needsTour = (p: Profile) => !p.touredAt && Date.now() - p.memberSince < DAY;
 
-type Ctx = { plan?: Plan; editing: boolean; setEditing: (v: boolean) => void };
+type Ctx = { plan?: Plan; editing: boolean; setEditing: (v: boolean) => void; playful: boolean };
 
 interface Step {
   id: string;
@@ -51,6 +51,8 @@ interface Step {
   /** Auto-advances once this turns true. */
   done?: (c: Ctx) => boolean;
   extra?: (c: Ctx) => ReactNode;
+  /** Straight-laced wording used when Playful text is off. */
+  pro?: { title?: string; body?: string | ((c: Ctx) => string) };
 }
 
 const planRoute = (c: Ctx) => (c.plan ? `/plans/${c.plan.id}` : '/plans');
@@ -80,6 +82,7 @@ const STEPS: Step[] = [
     target: ['nav-plans'],
     title: 'Every purchase is a plan',
     body: 'Head to Plans to see everything you’re paying off, plus the trophies you’ve already cleared.',
+    pro: { body: 'Head to Plans to see everything you’re paying off, plus the plans you’ve already paid in full.' },
   },
   {
     id: 'plans',
@@ -87,6 +90,7 @@ const STEPS: Step[] = [
     route: () => '/plans',
     target: ['plans-grid'],
     title: 'Your collection',
+    pro: { title: 'Your plans' },
     body: 'Each card is one purchase, with its progress ring and next due date. Tap any card to open it.',
   },
   {
@@ -97,6 +101,7 @@ const STEPS: Step[] = [
     needsPlan: true,
     title: 'Pay it your way',
     body: (c) => `This is ${c.plan?.name ?? 'a plan'}. Pay the next installment, pick a custom amount, or hold to pay it all off at once. There’s confetti for that last one.`,
+    pro: { body: (c) => `This is ${c.plan?.name ?? 'a plan'}. Pay the next installment, choose a custom amount, or pay off the full balance at once.` },
   },
   {
     id: 'schedule',
@@ -139,6 +144,7 @@ const STEPS: Step[] = [
     target: ['demo-link'],
     title: 'Behind the curtain',
     body: 'Down at the bottom of Account is the best part: Demo controls. This is where you build your larp.',
+    pro: { title: 'Demo controls', body: 'At the bottom of Account you’ll find Demo controls, where you can add plans and change how your account behaves.' },
   },
   {
     id: 'demo-add',
@@ -147,7 +153,8 @@ const STEPS: Step[] = [
     target: ['demo-add'],
     demo: true,
     title: 'Add anything you want',
-    body: 'Add a plan for any purchase you can dream up: the watch, the bag, the car. You can even backdate it so it looks like you’ve been paying for months. Sample data fills things in instantly.',
+    body: 'Add a plan for any purchase you can dream up: the watch, the bag, the car. You can even backdate it so it looks like you’ve been paying for months.',
+    pro: { title: 'Add a plan', body: 'Add a plan for any purchase, with its own price, term and APR. Backdate it and past payments fill in automatically.' },
   },
   {
     id: 'demo-edit',
@@ -158,6 +165,7 @@ const STEPS: Step[] = [
     interactive: true,
     done: (c) => c.editing,
     title: 'Edit your larp',
+    pro: { title: 'Edit your plans' },
     body: (c) =>
       c.editing
         ? 'Editing is on. Every plan now has Edit, Photo and Delete buttons.'
@@ -179,6 +187,7 @@ const STEPS: Step[] = [
     target: ['demo-tuning'],
     demo: true,
     title: 'Tune the simulation',
+    pro: { title: 'Processing and limits' },
     body: 'Choose how long payments stay pending, from instant to three days, and set your own spending power limit.',
   },
   {
@@ -214,10 +223,11 @@ export function TourProvider({ children, onAddPlan }: { children: ReactNode; onA
   const [index, setIndex] = useState(0);
   const autoStarted = useRef(false);
 
+  const playful = usePlayful();
   const plan = plans.find((p) => p.status === 'active') ?? plans[0];
   const ctx: Ctx = useMemo(
-    () => ({ plan, editing: !!profile.demoEditing, setEditing: (v) => void updateProfile({ demoEditing: v }) }),
-    [plan, profile.demoEditing, updateProfile],
+    () => ({ plan, editing: !!profile.demoEditing, setEditing: (v) => void updateProfile({ demoEditing: v }), playful }),
+    [plan, profile.demoEditing, updateProfile, playful],
   );
   const steps = useMemo(() => STEPS.filter((s) => !s.needsPlan || plan), [plan]);
   const step = phase === 'steps' ? steps[Math.min(index, steps.length - 1)] : undefined;
@@ -269,12 +279,13 @@ export function TourProvider({ children, onAddPlan }: { children: ReactNode; onA
       {createPortal(
         <AnimatePresence>
           {(phase === 'intro' || phase === 'loading') && (
-            <Intro key="intro" name={profile.displayName} empty={!plans.length} loading={phase === 'loading'} onStart={begin} onSkip={finish} />
+            <Intro key="intro" playful={playful} name={profile.displayName} empty={!plans.length} loading={phase === 'loading'} onStart={begin} onSkip={finish} />
           )}
           {step && <Spotlight key="spot" step={step} index={index} total={steps.length} ctx={ctx} onNext={next} onBack={back} onSkip={finish} />}
           {phase === 'outro' && (
             <Outro
               key="outro"
+              playful={playful}
               name={profile.displayName}
               onAddPlan={() => {
                 finish();
@@ -321,13 +332,20 @@ const rise = (delay: number) => ({
   transition: { delay, duration: 0.7, ease: [0.16, 1, 0.3, 1] as const },
 });
 
-const PITCH = [
-  { icon: Gem, title: 'Pick anything', body: 'The watch, the bag, the car. If you want it, it can be a plan.' },
-  { icon: SplitSquareHorizontal, title: 'Split it up', body: 'Pay in 4 every two weeks, or monthly for up to 4 years.' },
-  { icon: Trophy, title: 'Pay it off', body: 'Make payments, set AutoPay, and celebrate when it’s yours.' },
-];
+const PITCH = {
+  playful: [
+    { icon: Gem, title: 'Pick anything', body: 'The watch, the bag, the car. If you want it, it can be a plan.' },
+    { icon: SplitSquareHorizontal, title: 'Split it up', body: 'Pay in 4 every two weeks, or monthly for up to 4 years.' },
+    { icon: Trophy, title: 'Pay it off', body: 'Make payments, set AutoPay, and celebrate when it’s yours.' },
+  ],
+  pro: [
+    { icon: Layers, title: 'Every purchase, one place', body: 'Each purchase becomes a plan with a clear schedule and balance.' },
+    { icon: SplitSquareHorizontal, title: 'Flexible terms', body: 'Pay in 4 every two weeks, or monthly for up to 48 months.' },
+    { icon: Zap, title: 'Pay your way', body: 'Pay early with no penalty, or set up AutoPay and never miss a due date.' },
+  ],
+};
 
-function Intro({ name, empty, loading, onStart, onSkip }: { name: string; empty: boolean; loading: boolean; onStart: (sample: boolean) => void; onSkip: () => void }) {
+function Intro({ playful, name, empty, loading, onStart, onSkip }: { playful: boolean; name: string; empty: boolean; loading: boolean; onStart: (sample: boolean) => void; onSkip: () => void }) {
   const [sample, setSample] = useState(true);
   const first = name.split(' ')[0];
   return (
@@ -343,11 +361,13 @@ function Intro({ name, empty, loading, onStart, onSkip }: { name: string; empty:
         <span className="text-gradient">Kova.</span>
       </motion.h1>
       <motion.p {...rise(0.35)} className="mt-3 text-[15px] text-white/60">
-        Kova is a playground for big purchases. Nothing here is real money, so go as big as you like.
+        {playful
+          ? 'Kova is a playground for big purchases. Nothing here is real money, so go as big as you like.'
+          : 'Kova splits your purchases into simple, predictable payments. Here’s a quick look at how it works.'}
       </motion.p>
 
       <div className="mt-7 space-y-3">
-        {PITCH.map((p, i) => (
+        {PITCH[playful ? 'playful' : 'pro'].map((p, i) => (
           <motion.div key={p.title} {...rise(0.5 + i * 0.12)} className="flex items-start gap-3.5 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3.5 backdrop-blur-xl">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-iris-500/25 text-iris-200">
               <p.icon className="size-[18px]" />
@@ -387,10 +407,10 @@ const RECAP = [
   { icon: Layers, label: 'Plans', body: 'Your purchases' },
   { icon: Zap, label: 'Pay', body: 'Now, custom, or payoff' },
   { icon: CreditCard, label: 'Wallet', body: 'Banks & cards' },
-  { icon: FlaskConical, label: 'Demo controls', body: 'Build & edit your larp' },
+  { icon: FlaskConical, label: 'Demo controls', body: 'Build & edit your larp', pro: 'Add & edit plans' },
 ];
 
-function Outro({ name, onAddPlan, onDone }: { name: string; onAddPlan: () => void; onDone: () => void }) {
+function Outro({ playful, name, onAddPlan, onDone }: { playful: boolean; name: string; onAddPlan: () => void; onDone: () => void }) {
   const first = name.split(' ')[0];
   useEffect(() => {
     const t = setTimeout(() => confettiBurst('big'), 250);
@@ -410,14 +430,14 @@ function Outro({ name, onAddPlan, onDone }: { name: string; onAddPlan: () => voi
         You’re all set{first ? `, ${first}` : ''}.
       </motion.h1>
       <motion.p {...rise(0.25)} className="mt-3 text-center text-[15px] text-white/60">
-        Here’s your cheat sheet. Now go buy something ridiculous.
+        {playful ? 'Here’s your cheat sheet. Now go buy something ridiculous.' : 'Here’s a quick recap. You can replay this tour anytime from Account.'}
       </motion.p>
       <div className="mt-7 grid grid-cols-2 gap-3">
         {RECAP.map((r, i) => (
           <motion.div key={r.label} {...rise(0.35 + i * 0.08)} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur-xl">
             <r.icon className="size-5 text-iris-300" />
             <p className="mt-3 text-sm font-semibold">{r.label}</p>
-            <p className="text-xs text-white/50">{r.body}</p>
+            <p className="text-xs text-white/50">{(!playful && r.pro) || r.body}</p>
           </motion.div>
         ))}
       </div>
@@ -614,7 +634,9 @@ function Spotlight({ step, index, total, ctx, onNext, onBack, onSkip }: { step: 
   const pos = placeCard(box, card, vp, mobile, dockTop);
   const hole = box ?? { x: vp.w / 2, y: vp.h / 2, w: 0, h: 0 };
   const spring = glide ? ({ type: 'spring', stiffness: 260, damping: 32 } as const) : { duration: 0 };
-  const body = typeof step.body === 'function' ? step.body(ctx) : step.body;
+  const words = ctx.playful ? step : { ...step, ...step.pro };
+  const body = typeof words.body === 'function' ? words.body(ctx) : words.body;
+  const title = words.title;
   const last = index === total - 1;
 
   return (
@@ -661,7 +683,7 @@ function Spotlight({ step, index, total, ctx, onNext, onBack, onSkip }: { step: 
         ref={cardRef}
         role="dialog"
         aria-live="polite"
-        aria-label={step.title}
+        aria-label={title}
         className={cn('absolute rounded-2xl border border-line bg-surface p-5 text-ink shadow-2xl', mobile ? 'w-[calc(100vw-32px)]' : 'w-[340px]')}
         initial={false}
         animate={{ left: pos.left, top: pos.top }}
@@ -680,7 +702,7 @@ function Spotlight({ step, index, total, ctx, onNext, onBack, onSkip }: { step: 
         </div>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={step.id + String(cheer)} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
-            <h2 className="mt-3 font-display text-lg leading-snug font-bold">{cheer ? 'Nice, editing unlocked.' : step.title}</h2>
+            <h2 className="mt-3 font-display text-lg leading-snug font-bold">{cheer ? 'Nice, editing unlocked.' : title}</h2>
             <p className="mt-1 text-sm text-muted">{body}</p>
             {step.extra?.(ctx)}
           </motion.div>

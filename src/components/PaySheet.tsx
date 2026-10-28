@@ -3,7 +3,7 @@ import { AlertCircle, ArrowLeft, Check, Clock, Copy, Loader2, Lock, Plus } from 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { planStats } from '../lib/finance';
-import { PaymentError, methodIssue, methodLabel, useData, useNow } from '../lib/store';
+import { PaymentError, methodIssue, methodLabel, useData, useNow, usePlayful } from '../lib/store';
 import type { PaymentMethod, Plan } from '../lib/types';
 import { cn, fmtDate, money, round2 } from '../lib/utils';
 import { HoldButton, SuccessCheck } from './Celebration';
@@ -88,6 +88,7 @@ export function PaySheet({
   const [custom, setCustom] = useState('');
   const [methodId, setMethodId] = useState<string | undefined>();
   const [agreed, setAgreed] = useState(false);
+  const playful = usePlayful();
   const [copied, setCopied] = useState(false);
   const [result, setResult] = useState<{ amount: number; settlesAt: number; confirmation: string; method: string; balance: number } | null>(null);
 
@@ -262,9 +263,15 @@ export function PaySheet({
 
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-2 p-4 text-xs leading-relaxed text-muted">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-iris-500" />
-                <span>
-                  I agree that this {money(amount)} is pretend money and {methodLabel(method)} will be left completely alone. No real dollars were harmed in the making of order {plan.orderNumber}.
-                </span>
+                {playful ? (
+                  <span>
+                    I agree that this {money(amount)} is pretend money and {methodLabel(method)} will be left completely alone. No real dollars were harmed in the making of order {plan.orderNumber}.
+                  </span>
+                ) : (
+                  <span>
+                    I authorize Kova to charge {money(amount)} to {methodLabel(method)} today for order {plan.orderNumber}. Once submitted, this payment can’t be canceled.
+                  </span>
+                )}
               </label>
 
               {error && (

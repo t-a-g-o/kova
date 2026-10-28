@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowRight, Check, Gem, Lock, Mail, MailCheck, SplitSquareHorizontal, Trophy, User } from 'lucide-react';
+import { ArrowRight, CalendarCheck, Check, Gem, Lock, Mail, MailCheck, ShoppingBag, SplitSquareHorizontal, Trophy, User } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authMessage, isReturning, useAuth } from '../../lib/auth';
+import { usePlayful } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { isStandalone } from '../../components/InstallPrompt';
 import { LogoMark } from '../../components/Logo';
@@ -92,14 +93,22 @@ function WelcomeShowcase() {
   );
 }
 
-const HOW = [
-  { icon: Gem, title: 'Pick anything', body: 'A watch, a bag, a car. Add any purchase you want.' },
-  { icon: SplitSquareHorizontal, title: 'Split it up', body: 'Pay in 4, or monthly for up to 4 years.' },
-  { icon: Trophy, title: 'Pay it off', body: 'Track every payment and celebrate when it’s yours.' },
-];
+const HOW = {
+  playful: [
+    { icon: Gem, title: 'Pick anything', body: 'A watch, a bag, a car. Add any purchase you want.' },
+    { icon: SplitSquareHorizontal, title: 'Split it up', body: 'Pay in 4, or monthly for up to 4 years.' },
+    { icon: Trophy, title: 'Pay it off', body: 'Track every payment and celebrate when it’s yours.' },
+  ],
+  pro: [
+    { icon: ShoppingBag, title: 'Check out with Kova', body: 'Choose Kova at checkout at the stores you love.' },
+    { icon: SplitSquareHorizontal, title: 'Choose your plan', body: 'Pay in 4 every two weeks, or monthly for up to 48 months.' },
+    { icon: CalendarCheck, title: 'Pay on your terms', body: 'Pay early with no penalty, or set up AutoPay and never miss a due date.' },
+  ],
+};
 
 /** First stop for anyone who has never signed in on this device. */
 export function Welcome() {
+  const playful = usePlayful();
   return (
     <AuthLayout
       footer={
@@ -122,16 +131,19 @@ export function Welcome() {
           <WelcomeShowcase />
         </motion.div>
         <motion.p variants={authItem} className="text-sm font-semibold text-iris-500">
-          New to Kova? Here’s the deal.
+          {playful ? 'New to Kova? Here’s the deal.' : 'New to Kova? Here’s how it works.'}
         </motion.p>
         <motion.h1 variants={authItem} className="mt-1 font-display text-[30px] leading-tight font-extrabold">
-          Buy the dream. <span className="text-gradient">Pay it off for fun.</span>
+          {playful ? 'Buy the dream. ' : 'Buy now. '}
+          <span className="text-gradient">{playful ? 'Pay it off for fun.' : 'Pay over time.'}</span>
         </motion.h1>
         <motion.p variants={authItem} className="mt-2 mb-7 text-[15px] text-muted">
-          Kova is a buy now, pay later playground. It looks and feels like the real thing, but no real money ever moves.
+          {playful
+            ? 'Kova is a buy now, pay later playground. It looks and feels like the real thing, but no real money ever moves.'
+            : 'Split purchases into simple, predictable payments. See every due date, pay early anytime, and track it all in one place.'}
         </motion.p>
         <div className="space-y-3">
-          {HOW.map((h, i) => (
+          {HOW[playful ? 'playful' : 'pro'].map((h, i) => (
             <motion.div key={h.title} variants={authItem} className="flex items-start gap-3.5 rounded-2xl border border-line bg-surface/60 px-4 py-3.5">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-iris-500/12 text-iris-500">
                 <h.icon className="size-[18px]" />
@@ -147,7 +159,7 @@ export function Welcome() {
           ))}
         </div>
         <motion.p variants={authItem} className="mt-5 text-center text-xs text-faint">
-          Free to use. No card, no credit check. Takes about 30 seconds.
+          {playful ? 'Free to use. No card, no credit check. Takes about 30 seconds.' : 'Checking your eligibility won’t affect your credit score.'}
         </motion.p>
       </motion.div>
     </AuthLayout>
@@ -294,6 +306,7 @@ export function SignUp() {
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [agree, setAgree] = useState(false);
+  const playful = usePlayful();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [touched, setTouched] = useState(false);
@@ -335,7 +348,14 @@ export function SignUp() {
       }
     >
       <motion.form id="signup" variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
-        <Hero title="Create your account" sub="Free, about 30 seconds, and no real money ever moves. Right after this we’ll show you around." />
+        <Hero
+          title="Create your account"
+          sub={
+            playful
+              ? 'Free, about 30 seconds, and no real money ever moves. Right after this we’ll show you around.'
+              : 'It takes less than a minute. Checking your eligibility won’t affect your credit score.'
+          }
+        />
         <motion.div variants={authItem}>
           <FormError msg={err} />
         </motion.div>
@@ -407,7 +427,16 @@ export function SignUp() {
             <AnimatePresence>{agree && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Check className="size-3.5" strokeWidth={3} /></motion.span>}</AnimatePresence>
           </button>
           <span onClick={() => setAgree((a) => !a)}>
-            I agree to Kova’s <span className="font-semibold text-ink">Terms of Service</span>, which mostly promise that nobody here is taking my money.
+            {playful ? (
+              <>
+                I agree to Kova’s <span className="font-semibold text-ink">Terms of Service</span>, which mostly promise that nobody here is taking my money.
+              </>
+            ) : (
+              <>
+                I agree to Kova’s <span className="font-semibold text-ink">Terms of Service</span> and <span className="font-semibold text-ink">Privacy Policy</span>, and consent to
+                receive account notices electronically.
+              </>
+            )}
           </span>
         </motion.div>
       </motion.form>

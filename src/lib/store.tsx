@@ -135,6 +135,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => applyTheme(profile.theme), [profile.theme]);
 
+  // Remembered per device so signed-out screens match the last account's choice.
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      localStorage.setItem(PLAYFUL_KEY, profile.playful ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  }, [ready, profile.playful]);
+
   const methods = useMemo(() => [...snap.methods].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.createdAt - b.createdAt), [snap.methods]);
   const plans = useMemo(() => [...snap.plans].sort((a, b) => b.createdAt - a.createdAt), [snap.plans]);
   const txns = useMemo(() => [...snap.txns].sort((a, b) => b.createdAt - a.createdAt), [snap.txns]);
@@ -508,6 +518,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     resetData,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+const PLAYFUL_KEY = 'kova:playful';
+
+/** Whether to use the jokey copy: the account's setting when signed in, else the last one used on this device. */
+export function usePlayful() {
+  const { user } = useAuth();
+  const { profile, ready } = useData();
+  if (user && ready) return !!profile.playful;
+  try {
+    return localStorage.getItem(PLAYFUL_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 export const useData = () => {
