@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
-import { InstallPrompt } from './components/InstallPrompt';
+import { InstallPrompt, isStandalone } from './components/InstallPrompt';
 import { LogoMark } from './components/Logo';
 import { ToastProvider } from './components/Toast';
 import { AuthProvider, isReturning, useAuth } from './lib/auth';
@@ -28,7 +28,7 @@ function Splash() {
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const loc = useLocation();
-  if (!user) return <Navigate to={isReturning() ? '/signin' : '/welcome'} replace state={{ from: loc.pathname }} />;
+  if (!user) return <Navigate to={isReturning() || isStandalone() ? '/signin' : '/welcome'} replace state={{ from: loc.pathname }} />;
   return <>{children}</>;
 }
 

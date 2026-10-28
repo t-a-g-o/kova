@@ -2,8 +2,9 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight, Check, Gem, Lock, Mail, MailCheck, SplitSquareHorizontal, Trophy, User } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { authMessage, useAuth } from '../../lib/auth';
+import { authMessage, isReturning, useAuth } from '../../lib/auth';
 import { cn } from '../../lib/utils';
+import { isStandalone } from '../../components/InstallPrompt';
 import { LogoMark } from '../../components/Logo';
 import { LogoTile } from '../../components/Logos';
 import { Button, Input, ProgressRing } from '../../components/ui';
@@ -227,7 +228,12 @@ export function SignIn() {
       }
     >
       <motion.form id="signin" variants={authStagger} initial="hidden" animate="show" onSubmit={submit} noValidate>
-        <Hero icon title="Welcome back" sub="Sign in to pick up where you left off." />
+        {isStandalone() && !isReturning() ? (
+          // iOS gives home screen apps their own storage, so the Safari login doesn't carry over.
+          <Hero icon title="One quick sign-in" sub="Your home screen app keeps its own login, separate from your browser. Sign in once here and Kova will remember you." />
+        ) : (
+          <Hero icon title="Welcome back" sub="Sign in to pick up where you left off." />
+        )}
         <motion.div variants={authItem}>
           <FormError msg={err} />
         </motion.div>

@@ -110,6 +110,7 @@ export function InstallPrompt() {
           <Step n={3}>
             Tap <b>Add</b>, then open Kova from your home screen
           </Step>
+          <Step n={4}>Sign in once in the app. It remembers you from then on</Step>
         </ol>
       ) : isAndroid ? (
         <ol className="mt-6 space-y-3 rounded-2xl bg-surface-2 p-4 text-left text-sm">
