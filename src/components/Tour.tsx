@@ -19,7 +19,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '../lib/hooks';
@@ -453,50 +453,100 @@ function findTarget(ids?: string[]) {
 const sameBox = (a: Box | null, b: Box | null) =>
   a === b || (!!a && !!b && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5);
 
-/** Follows the step's target every frame, so page transitions, sheets and scrolling all stay in sync. */
-function useTargetBox(step: Step) {
-  const [box, setBox] = useState<Box | null>(null);
-  const [vp, setVp] = useState({ w: innerWidth, h: innerHeight });
-  const scrolled = useRef<string | null>(null);
+/** The element that scrolls `el`, or null when it sits in something pinned (tab bar, a sheet that fits). */
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const cs = getComputedStyle(p);
+    if (/(auto|scroll)/.test(cs.overflowY) && p.scrollHeight > p.clientHeight + 1) return p;
+    if (cs.position === 'fixed') return null;
+  }
+  return document.scrollingElement as HTMLElement;
+}
+
+type Tracked = { id: string; box: Box | null; vp: { w: number; h: number }; dockTop: boolean };
+
+/**
+ * Waits for the step's target to stop moving (page transitions, sheets sliding in), scrolls it into the
+ * part of the screen the card won't cover in one instant jump, then follows it every frame. Scrolling
+ * smoothly while a springy highlight chases the target is what made it bounce up and down.
+ */
+function useTargetBox(step: Step, mobile: boolean, cardH: RefObject<number>) {
+  const [t, setT] = useState<Tracked>({ id: '', box: null, vp: { w: innerWidth, h: innerHeight }, dockTop: false });
 
   useEffect(() => {
     let raf = 0;
-    let last: Box | null = null;
+    let stage: 'seek' | 'scrolled' | 'live' = 'seek';
+    let prev: Box | null = null;
+    let stable = 0;
+    let dockTop = false;
+    let last: Tracked | null = null;
+    const t0 = performance.now();
+
+    const publish = (box: Box | null) => {
+      const vp = { w: innerWidth, h: innerHeight };
+      if (last && sameBox(box, last.box) && last.vp.w === vp.w && last.vp.h === vp.h) return;
+      setT((last = { id: step.id, box, vp, dockTop }));
+    };
+
     const tick = () => {
+      raf = requestAnimationFrame(tick);
       const el = findTarget(step.target);
-      let b: Box | null = null;
-      if (el) {
-        const r = el.getBoundingClientRect();
-        b = { x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 };
-        if (scrolled.current !== step.id) {
-          scrolled.current = step.id;
-          const fixed = getComputedStyle(el).position === 'fixed' || !!el.closest('nav.fixed');
-          if (!fixed && (r.top < 90 || r.bottom > innerHeight * 0.55)) {
-            el.style.scrollMarginTop = '96px';
-            el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      const vh = innerHeight;
+      if (!el) {
+        prev = null;
+        stable = 0;
+        if (performance.now() - t0 > 2500) publish(null);
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      const b = { x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 };
+      stable = prev && sameBox(b, prev) ? stable + 1 : 0;
+      prev = b;
+
+      if (stage === 'seek' && (stable >= 6 || performance.now() - t0 > 2000)) {
+        stage = 'live';
+        const sp = scrollParent(el);
+        if (sp) {
+          // Mobile: keep it below the top bar and above the docked card. Desktop: just on screen.
+          const top = mobile ? 72 : 24;
+          const bottom = mobile ? vh - (cardH.current ?? 240) - 32 : vh - 24;
+          const fits = b.h <= bottom - top;
+          const ok = fits ? b.y >= top && b.y + b.h <= bottom : b.y >= top && b.y <= top + 80;
+          if (!ok) {
+            const before = sp.scrollTop;
+            sp.scrollTop = before + (b.y - top);
+            if (Math.abs(sp.scrollTop - before) > 1) {
+              stage = 'scrolled';
+              stable = 0;
+              prev = null;
+            }
           }
         }
+      } else if (stage === 'scrolled' && stable >= 2) stage = 'live';
+
+      if (stage === 'live') {
+        // Pick the card's end of the screen once per step so it never flips while tracking.
+        if (!docked) {
+          docked = true;
+          const h = cardH.current ?? 240;
+          dockTop = mobile && b.y + b.h > vh - h - 24 && b.y > h + 40;
+        }
+        publish(b);
       }
-      if (!sameBox(b, last)) setBox((last = b));
-      setVp((v) => (v.w === innerWidth && v.h === innerHeight ? v : { w: innerWidth, h: innerHeight }));
-      raf = requestAnimationFrame(tick);
     };
+    let docked = false;
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [step]);
+  }, [step, mobile, cardH]);
 
-  return { box, vp };
+  return t;
 }
 
-function placeCard(box: Box | null, card: { w: number; h: number }, vp: { w: number; h: number }, mobile: boolean) {
+function placeCard(box: Box | null, card: { w: number; h: number }, vp: { w: number; h: number }, mobile: boolean, dockTop: boolean) {
   const clampX = (x: number) => Math.min(Math.max(EDGE, x), vp.w - card.w - EDGE);
   const clampY = (y: number) => Math.min(Math.max(EDGE, y), vp.h - card.h - EDGE);
+  if (mobile) return { left: EDGE, top: dockTop ? 48 : vp.h - card.h - 28 };
   if (!box) return { left: (vp.w - card.w) / 2, top: (vp.h - card.h) / 2 };
-  if (mobile) {
-    // Docked to whichever end of the screen the target isn't in.
-    const dockTop = box.y + box.h > vp.h - card.h - EDGE * 2 && box.y > card.h + EDGE * 2;
-    return { left: EDGE, top: dockTop ? Math.max(EDGE, Math.min(box.y - GAP - card.h, EDGE + 40)) : vp.h - card.h - EDGE - 8 };
-  }
   const cx = clampX(box.x + box.w / 2 - card.w / 2);
   const below = { left: cx, top: box.y + box.h + GAP };
   const above = { left: cx, top: box.y - GAP - card.h };
@@ -511,9 +561,17 @@ function placeCard(box: Box | null, card: { w: number; h: number }, vp: { w: num
 
 function Spotlight({ step, index, total, ctx, onNext, onBack, onSkip }: { step: Step; index: number; total: number; ctx: Ctx; onNext: () => void; onBack: () => void; onSkip: () => void }) {
   const mobile = !useMediaQuery('(min-width: 640px)');
-  const { box, vp } = useTargetBox(step);
   const cardRef = useRef<HTMLDivElement>(null);
+  const cardH = useRef(240);
   const [card, setCard] = useState({ w: 340, h: 220 });
+  const { id: trackedId, box, vp, dockTop } = useTargetBox(step, mobile, cardH);
+  // Glide to each new target once, then stick to it exactly while the page scrolls.
+  const [landed, setLanded] = useState('');
+  const glide = landed !== trackedId;
+  useEffect(() => {
+    const t = setTimeout(() => setLanded(trackedId), 700);
+    return () => clearTimeout(t);
+  }, [trackedId]);
   const isDone = !!step.done?.(ctx);
   const wasDone = useRef(isDone);
   const [cheer, setCheer] = useState(false);
@@ -521,7 +579,10 @@ function Spotlight({ step, index, total, ctx, onNext, onBack, onSkip }: { step: 
   useLayoutEffect(() => {
     const el = cardRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setCard({ w: el.offsetWidth, h: el.offsetHeight }));
+    const ro = new ResizeObserver(() => {
+      cardH.current = el.offsetHeight;
+      setCard({ w: el.offsetWidth, h: el.offsetHeight });
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -550,9 +611,9 @@ function Spotlight({ step, index, total, ctx, onNext, onBack, onSkip }: { step: 
     return () => removeEventListener('keydown', onKey);
   }, [onNext, onBack]);
 
-  const pos = placeCard(box, card, vp, mobile);
+  const pos = placeCard(box, card, vp, mobile, dockTop);
   const hole = box ?? { x: vp.w / 2, y: vp.h / 2, w: 0, h: 0 };
-  const spring = { type: 'spring', stiffness: 260, damping: 32 } as const;
+  const spring = glide ? ({ type: 'spring', stiffness: 260, damping: 32 } as const) : { duration: 0 };
   const body = typeof step.body === 'function' ? step.body(ctx) : step.body;
   const last = index === total - 1;
 
