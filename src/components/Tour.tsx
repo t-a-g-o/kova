@@ -216,7 +216,7 @@ export const useTour = () => useContext(TourContext);
 type Phase = 'off' | 'intro' | 'loading' | 'steps' | 'outro';
 
 export function TourProvider({ children, onAddPlan }: { children: ReactNode; onAddPlan: () => void }) {
-  const { ready, profile, plans, updateProfile, loadSample } = useData();
+  const { ready, profile, plans, methods, updateProfile, loadSample, clearSample } = useData();
   const nav = useNavigate();
   const loc = useLocation();
   const [phase, setPhase] = useState<Phase>('off');
@@ -255,16 +255,24 @@ export function TourProvider({ children, onAddPlan }: { children: ReactNode; onA
   const finish = useCallback(() => {
     setPhase('off');
     void updateProfile({ touredAt: Date.now() });
-  }, [updateProfile]);
+    void clearSample();
+  }, [updateProfile, clearSample]);
+
+  // Sample data only lives for the tour; tidy up after one that was closed midway.
+  const leftovers = plans.some((p) => p.sample) || methods.some((m) => m.sample);
+  useEffect(() => {
+    if (ready && phase === 'off' && leftovers && !needsTour(profile)) void clearSample();
+  }, [ready, phase, leftovers, profile, clearSample]);
 
   const start = useCallback(() => {
     setIndex(0);
     setPhase('intro');
   }, []);
 
-  const begin = async (sample: boolean) => {
+  // Empty accounts get sample plans so the tour has something to show; they're removed when it ends.
+  const begin = async () => {
     setIndex(0);
-    if (sample) {
+    if (!plans.length) {
       setPhase('loading');
       await loadSample();
     } else setPhase('steps');
@@ -279,7 +287,7 @@ export function TourProvider({ children, onAddPlan }: { children: ReactNode; onA
       {createPortal(
         <AnimatePresence>
           {(phase === 'intro' || phase === 'loading') && (
-            <Intro key="intro" playful={playful} name={profile.displayName} empty={!plans.length} loading={phase === 'loading'} onStart={begin} onSkip={finish} />
+            <Intro key="intro" playful={playful} name={profile.displayName} loading={phase === 'loading'} onStart={begin} onSkip={finish} />
           )}
           {step && <Spotlight key="spot" step={step} index={index} total={steps.length} ctx={ctx} onNext={next} onBack={back} onSkip={finish} />}
           {phase === 'outro' && (
@@ -345,8 +353,7 @@ const PITCH = {
   ],
 };
 
-function Intro({ playful, name, empty, loading, onStart, onSkip }: { playful: boolean; name: string; empty: boolean; loading: boolean; onStart: (sample: boolean) => void; onSkip: () => void }) {
-  const [sample, setSample] = useState(true);
+function Intro({ playful, name, loading, onStart, onSkip }: { playful: boolean; name: string; loading: boolean; onStart: () => void; onSkip: () => void }) {
   const first = name.split(' ')[0];
   return (
     <Scene>
@@ -380,18 +387,8 @@ function Intro({ playful, name, empty, loading, onStart, onSkip }: { playful: bo
         ))}
       </div>
 
-      {empty && (
-        <motion.label {...rise(0.9)} className="mt-5 flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-mint-400/25 bg-mint-400/[0.07] px-4 py-3.5">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Start me off with sample plans</p>
-            <p className="text-[13px] text-white/55">So the tour has something to show. You can reset it anytime.</p>
-          </div>
-          <Toggle checked={sample} onChange={setSample} label="Add sample plans" />
-        </motion.label>
-      )}
-
       <motion.div {...rise(1)} className="mt-7 space-y-2">
-        <Button variant="light" size="lg" block loading={loading} onClick={() => onStart(empty && sample)}>
+        <Button variant="light" size="lg" block loading={loading} onClick={onStart}>
           Show me around <ArrowRight className="size-4" />
         </Button>
         <button onClick={onSkip} disabled={loading} className="w-full py-2.5 text-sm font-semibold text-white/50 transition hover:text-white">

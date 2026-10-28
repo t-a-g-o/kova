@@ -47,6 +47,8 @@ interface DataCtx {
   setDefaultMethod(id: string): Promise<void>;
   updateProfile(patch: Partial<Profile>): Promise<void>;
   loadSample(): Promise<void>;
+  /** Removes everything loadSample added, leaving the user's own data alone. */
+  clearSample(): Promise<void>;
   resetData(): Promise<void>;
 }
 
@@ -446,12 +448,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
     if (profile.spendingPower < 50000) await dataApi.saveProfile(u!, { spendingPower: 50000 });
     await dataApi.putMany(u!, [
-      { coll: 'methods', item: bank },
-      { coll: 'methods', item: card },
-      ...[watch, bag, necklace, bracelet].map((item) => ({ coll: 'plans' as Coll, item })),
-      ...txns.map((item) => ({ coll: 'txns' as Coll, item })),
+      { coll: 'methods', item: { ...bank, sample: true } },
+      { coll: 'methods', item: { ...card, sample: true } },
+      ...[watch, bag, necklace, bracelet].map((item) => ({ coll: 'plans' as Coll, item: { ...item, sample: true } })),
+      ...txns.map((item) => ({ coll: 'txns' as Coll, item: { ...item, sample: true } })),
     ]);
   }, [u, snap.methods, profile.displayName, profile.spendingPower]);
+
+  const clearSample = useCallback(async () => {
+    const planIds = new Set(snap.plans.filter((p) => p.sample).map((p) => p.id));
+    const methods = snap.methods.filter((m) => m.sample);
+    const txns = snap.txns.filter((t) => t.sample || (t.planId && planIds.has(t.planId)));
+    if (!planIds.size && !methods.length && !txns.length) return;
+    await dataApi.removeMany(u!, [
+      ...[...planIds].map((id) => ({ coll: 'plans' as Coll, id })),
+      ...methods.map((m) => ({ coll: 'methods' as Coll, id: m.id })),
+      ...txns.map((t) => ({ coll: 'txns' as Coll, id: t.id })),
+    ]);
+    // Keep a default on file if the sample bank held it and the user has methods of their own.
+    const own = snap.methods.filter((m) => !m.sample);
+    if (methods.some((m) => m.isDefault) && own.length && !own.some((m) => m.isDefault)) await dataApi.put(u!, 'methods', { ...own[0], isDefault: true });
+  }, [u, snap.plans, snap.methods, snap.txns]);
 
   // Autopay: when an installment comes due on a plan with autopay, pay it automatically.
   const autopayRan = useRef(new Set<string>());
@@ -515,6 +532,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setDefaultMethod,
     updateProfile,
     loadSample,
+    clearSample,
     resetData,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

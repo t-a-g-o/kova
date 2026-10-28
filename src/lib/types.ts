@@ -41,6 +41,8 @@ export interface Plan {
   methodId?: string;
   orderNumber: string;
   notes?: string;
+  /** Added for the welcome tour and removed when it ends. */
+  sample?: boolean;
 }
 
 export type TxnType = 'payment' | 'payoff' | 'purchase' | 'refund';
@@ -59,6 +61,8 @@ export interface Txn {
   failed?: boolean;
   auto?: boolean;
   confirmation: string;
+  /** Added for the welcome tour and removed when it ends. */
+  sample?: boolean;
 }
 
 export type TxnStatus = 'pending' | 'completed' | 'failed';
@@ -81,6 +85,8 @@ export interface PaymentMethod {
   createdAt: number;
   /** Banks show "verifying" until this moment. */
   verifiesAt?: number;
+  /** Added for the welcome tour and removed when it ends. */
+  sample?: boolean;
 }
 
 export type ThemePref = 'system' | 'light' | 'dark';
