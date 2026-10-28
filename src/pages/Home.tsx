@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ArrowRight, CreditCard, Layers } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, CalendarDays, CreditCard, Layers, Wallet } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PlanThumb } from '../components/PlanThumb';
@@ -53,6 +53,8 @@ export function Home() {
   }, [active, rows, upcoming, now]);
 
   const available = Math.max(0, profile.spendingPower - totals.balance);
+  const overdue = upcoming.filter(({ inst }) => inst.status === 'overdue');
+  const autoPayCount = active.filter(({ plan }) => plan.autopay).length;
   const next = nextUp[0];
   const payable = nextUp.find((n) => !n.processing);
   const first = (profile.displayName || '').split(' ')[0];
@@ -70,14 +72,64 @@ export function Home() {
 
   return (
     <div>
-      <motion.div {...fade()} className="mb-6 flex flex-wrap items-end justify-between gap-4 lg:mb-8">
+      <motion.div {...fade()} className="mb-7 flex flex-wrap items-end justify-between gap-4 lg:mb-8">
         <div>
           <p className="text-sm text-muted">{(isNew ? 'Welcome' : 'Welcome back') + (first ? `, ${first}` : '')}</p>
-          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight lg:text-[28px]">Overview</h1>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Account overview</h1>
+          <p className="mt-2 text-sm text-muted">Your balances, payments, and plans in one place.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => nav('/activity')}>View activity <ArrowUpRight className="size-4" /></Button>
           {payable && <Button onClick={() => nav(`/plans/${payable.plan.id}`, { state: { pay: 'next' } })}>Make a payment</Button>}
         </div>
+      </motion.div>
+
+      <motion.div {...fade(1)} data-tour="summary" className="mb-6 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+        <section className="relative overflow-hidden rounded-2xl bg-[#18243c] p-6 text-white sm:p-7">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-slate-300">Total outstanding balance</p>
+            <Wallet className="size-5 text-slate-400" aria-hidden="true" />
+          </div>
+          <p className="tabular mt-5 text-4xl font-semibold tracking-tight sm:text-5xl">
+            <AnimatedNumber value={totals.balance} duration={0.9} />
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full bg-white/10 px-3 py-1.5">{active.length} active plan{active.length === 1 ? '' : 's'}</span>
+            {overdue.length > 0 && <span className="rounded-full bg-rose-400/15 px-3 py-1.5 text-rose-200">{overdue.length} past-due payment{overdue.length === 1 ? '' : 's'}</span>}
+          </div>
+          <div className="mt-7 flex items-center justify-between gap-4 border-t border-white/15 pt-4">
+            <div>
+              <p className="text-xs text-slate-300">Available spending power</p>
+              <p className="tabular mt-1 text-xl font-semibold">{money(available)}</p>
+            </div>
+            <div className="w-32 text-right">
+              <p className="text-xs text-slate-300">{money(profile.spendingPower, true)} limit</p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
+                <div className="h-full rounded-full bg-indigo-300" style={{ width: `${Math.min(100, available / Math.max(1, profile.spendingPower) * 100)}%` }} />
+              </div>
+            </div>
+          </div>
+        </section>
+        <Card className="grid grid-cols-2 divide-x divide-line">
+          <Metric label="Due in next 30 days">
+            <CalendarDays className="mb-5 size-5 text-muted" aria-hidden="true" />
+            <p className="tabular text-2xl font-semibold tracking-tight sm:text-3xl"><AnimatedNumber value={totals.due30} duration={0.9} /></p>
+            <p className="mt-2 text-xs text-muted">{totals.due30Count} scheduled payment{totals.due30Count === 1 ? '' : 's'}</p>
+            {overdue.length > 0 && <p className="mt-2 text-xs text-rose-500">Includes past-due payments</p>}
+          </Metric>
+          <Metric label="Paid to date">
+            <Layers className="mb-5 size-5 text-muted" aria-hidden="true" />
+            <p className="tabular text-2xl font-semibold tracking-tight sm:text-3xl"><AnimatedNumber value={totals.paid} duration={0.9} /></p>
+            <p className="mt-2 text-xs text-muted">{paidOff.length} plan{paidOff.length === 1 ? '' : 's'} paid off</p>
+          </Metric>
+          <div className="col-span-2 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface-2/40 px-5 py-4">
+            <div>
+              <p className="text-sm font-medium">Automatic payments</p>
+              <p className="mt-1 text-xs text-muted">{active.length ? `Enabled for ${autoPayCount} of ${active.length} active plans` : 'Manage payment methods in your wallet'}</p>
+            </div>
+            <Link to={active.length ? '/plans' : '/wallet'} className="inline-flex items-center gap-1 text-sm font-medium text-iris-500 hover:underline">Manage <ArrowRight className="size-4" /></Link>
+          </div>
+        </Card>
       </motion.div>
 
       {plans.length === 0 ? (
@@ -113,49 +165,9 @@ export function Home() {
               </Card>
             </motion.div>
           )}
-          {/* Summary */}
-          <motion.div {...fade(1)} data-tour="summary">
-            <Card className="grid grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-line">
-              <Metric label="Total balance" className="col-span-2 border-b border-line lg:col-span-1 lg:border-b-0">
-                <span className="text-[32px] leading-none font-semibold tracking-tight">
-                  <AnimatedNumber value={totals.balance} duration={0.9} />
-                </span>
-                <span className="mt-2 block text-sm text-muted">
-                  {active.length} active plan{active.length === 1 ? '' : 's'}
-                </span>
-              </Metric>
-              <Metric label="Due in next 30 days" className="border-r border-line lg:border-r-0">
-                <span className="text-xl font-semibold tracking-tight">
-                  <AnimatedNumber value={totals.due30} duration={0.9} />
-                </span>
-                <span className="mt-1 block text-sm text-muted">
-                  {totals.due30Count} payment{totals.due30Count === 1 ? '' : 's'}
-                </span>
-              </Metric>
-              <Metric label="Paid to date">
-                <span className="text-xl font-semibold tracking-tight">
-                  <AnimatedNumber value={totals.paid} duration={0.9} />
-                </span>
-                <span className="mt-1 block text-sm text-muted">{paidOff.length} paid off</span>
-              </Metric>
-              <Metric label="Spending power" className="col-span-2 border-t border-line lg:col-span-1 lg:border-t-0">
-                <span className="text-xl font-semibold tracking-tight">{money(available, true)}</span>
-                <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                  <motion.div
-                    className="h-full rounded-full bg-iris-500"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (available / Math.max(1, profile.spendingPower)) * 100)}%` }}
-                    transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                </div>
-                <span className="mt-1.5 block text-xs text-muted">of {money(profile.spendingPower, true)} limit</span>
-              </Metric>
-            </Card>
-          </motion.div>
-
           {next && (
             <motion.div {...fade(2)} data-tour="next-payment">
-              <Card className="flex flex-wrap items-center gap-4 px-5 py-4">
+              <Card className={cn("flex flex-wrap items-center gap-4 border-l-4 px-5 py-5", next.due.overdue ? "border-l-rose-500" : "border-l-iris-500")}>
                 <PlanThumb plan={next.plan} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-muted">{next.due.overdue ? 'Past due' : 'Next payment'}</p>
@@ -185,8 +197,8 @@ export function Home() {
             <div className="min-w-0 space-y-6">
               <motion.div {...fade(3)}>
                 <Card>
-                  <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-                    <h2 className="font-semibold">Plans</h2>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+                    <div><h2 className="font-semibold">Your financing</h2><p className="mt-1 hidden text-xs text-muted sm:block">Balances and repayment progress</p></div>
                     <Segmented
                       value={tab}
                       onChange={setTab}
@@ -213,7 +225,7 @@ export function Home() {
               <motion.div {...fade(5)}>
                 <Card>
                   <div className="border-b border-line px-5 py-3.5">
-                    <h2 className="font-semibold">Upcoming</h2>
+                    <h2 className="font-semibold">Payment calendar</h2><p className="mt-1 text-xs text-muted">Next installment for each plan</p>
                   </div>
                   {nextUp.length ? (
                     <ul className="divide-y divide-line">
@@ -269,7 +281,7 @@ export function Home() {
 
 function Metric({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={cn('p-5', className)}>
+    <div className={cn('min-w-0 p-5 sm:p-6', className)}>
       <p className="mb-2 text-[13px] font-medium text-muted">{label}</p>
       {children}
     </div>
@@ -281,7 +293,7 @@ function PlansTable({ rows }: { rows: { plan: Plan; s: PlanStats }[] }) {
   return (
     <div>
       <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.9fr)] gap-4 px-5 pt-3 pb-2 text-xs font-medium text-faint md:grid">
-        <span>Item</span>
+        <span>Financing plan</span>
         <span>Progress</span>
         <span>Next payment</span>
         <span className="text-right">Balance</span>
@@ -299,7 +311,7 @@ function PlansTable({ rows }: { rows: { plan: Plan; s: PlanStats }[] }) {
                   <PlanThumb plan={plan} size={40} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{plan.name}</p>
-                    <p className="truncate text-xs text-muted">{plan.merchant}</p>
+                    <p className="truncate text-xs text-muted">{plan.merchant} · {plan.apr === 0 ? '0% APR' : `${plan.apr}% APR`}</p>
                   </div>
                 </div>
                 <div className="col-span-2 row-start-2 md:col-span-1 md:row-start-auto">
@@ -370,13 +382,16 @@ function ScheduleChart({ items, now }: { items: { plan: Plan; inst: { dueDate: n
           <p className="text-xs text-muted">total scheduled</p>
         </div>
       </div>
-      <div className="flex h-40 items-end gap-3 border-b border-line sm:gap-5" role="list" aria-label="Scheduled payments by month">
+      <div className="flex h-40 items-end gap-3 border-b border-line bg-[linear-gradient(to_top,var(--line)_1px,transparent_1px)] bg-[size:100%_25%] sm:gap-5" role="list" aria-label="Scheduled payments by month">
         {months.map((m, i) => (
           <div
             key={m.label + i}
             role="listitem"
             aria-label={`${m.full}: ${money(m.total)}`}
             className="relative flex h-full flex-1 cursor-default items-end"
+            tabIndex={0}
+            onFocus={() => setHover(i)}
+            onBlur={() => setHover(null)}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
             onClick={() => setHover((h) => (h === i ? null : i))}
